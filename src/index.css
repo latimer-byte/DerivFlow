@@ -1,0 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-background: #0D1117;
+  --color-card: #161B22;
+  --color-border: #2A2F36;
+  
+  --color-brand: #1E90FF;
+  --color-brand-hover: #1C86EE;
+  
+  --color-bullish: #00C853;
+  --color-bearish: #FF3B30;
+  
+  --color-text-primary: #E6EDF3;
+  --color-text-secondary: #8B949E;
+  --color-text-muted: #6E7681;
+
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+  --radius-3xl: 16px;
+}
+
+.light {
+  --color-background: #F0F2F5;
+  --color-card: #FFFFFF;
+  --color-border: #D1D5DB;
+  
+  --color-brand: #2563EB;
+  --color-brand-hover: #1D4ED8;
+  
+  --color-bullish: #10B981;
+  --color-bearish: #EF4444;
+  
+  --color-text-primary: #111827;
+  --color-text-secondary: #4B5563;
+  --color-text-muted: #6B7280;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-text-primary font-sans antialiased;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full hover:bg-text-muted transition-colors;
+  }
+}
+
+.font-price {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Premium micro-interactions */
+.price-tick-up {
+  animation: tick-up 0.5s ease-out;
+}
+
+.price-tick-down {
+  animation: tick-down 0.5s ease-out;
+}
+
+@keyframes tick-up {
+  0% { color: var(--color-bullish); }
+  100% { color: inherit; }
+}
+
+@keyframes tick-down {
+  0% { color: var(--color-bearish); }
+  100% { color: inherit; }
+}
+
+/* TradingView style chart overrides */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--color-border);
+  stroke-opacity: 0.5;
+}
+
+.recharts-tooltip-cursor {
+  stroke: var(--color-text-muted);
+  stroke-dasharray: 3 3;
+}
