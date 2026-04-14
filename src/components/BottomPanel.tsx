@@ -6,9 +6,12 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } 
 interface BottomPanelProps {
   activeTrades: any[];
   tradeHistory: any[];
+  user: {
+    id: string;
+  };
 }
 
-export function BottomPanel({ activeTrades, tradeHistory }: BottomPanelProps) {
+export function BottomPanel({ activeTrades, tradeHistory, user }: BottomPanelProps) {
   const [activeTab, setActiveTab] = React.useState<'active' | 'history' | 'logs'>('active');
   const [historyFilter, setHistoryFilter] = useState<'all' | 'wins' | 'losses' | 'deposits' | 'withdrawals'>('all');
 
@@ -40,19 +43,11 @@ export function BottomPanel({ activeTrades, tradeHistory }: BottomPanelProps) {
   ];
 
   const filteredHistory = useMemo(() => {
-    // For demo, we'll include some mock deposits/withdrawals in the history view
-    const mockTransactions = [
-      { type: 'deposit', amount: 500, timestamp: Date.now() - 3600000, symbol: 'CASH', result: 'success' },
-      { type: 'withdrawal', amount: 200, timestamp: Date.now() - 7200000, symbol: 'CASH', result: 'success' },
-    ];
-
-    const combined = [...tradeHistory, ...mockTransactions].sort((a, b) => b.timestamp - a.timestamp);
+    const combined = [...tradeHistory].sort((a, b) => b.timestamp - a.timestamp);
 
     switch (historyFilter) {
       case 'wins': return combined.filter(t => t.result === 'win');
       case 'losses': return combined.filter(t => t.result === 'loss');
-      case 'deposits': return combined.filter(t => t.type === 'deposit');
-      case 'withdrawals': return combined.filter(t => t.type === 'withdrawal');
       default: return combined;
     }
   }, [tradeHistory, historyFilter]);
@@ -176,8 +171,6 @@ export function BottomPanel({ activeTrades, tradeHistory }: BottomPanelProps) {
                 <FilterBtn active={historyFilter === 'all'} onClick={() => setHistoryFilter('all')} label="All" />
                 <FilterBtn active={historyFilter === 'wins'} onClick={() => setHistoryFilter('wins')} label="Wins" />
                 <FilterBtn active={historyFilter === 'losses'} onClick={() => setHistoryFilter('losses')} label="Losses" />
-                <FilterBtn active={historyFilter === 'deposits'} onClick={() => setHistoryFilter('deposits')} label="Deposits" />
-                <FilterBtn active={historyFilter === 'withdrawals'} onClick={() => setHistoryFilter('withdrawals')} label="Withdrawals" />
               </div>
 
               <div className="flex-1 overflow-auto">
@@ -235,7 +228,7 @@ export function BottomPanel({ activeTrades, tradeHistory }: BottomPanelProps) {
         {activeTab === 'logs' && (
           <div className="p-4 space-y-1">
             <LogEntry type="info" message="WebSocket connection established with Deriv API" />
-            <LogEntry type="success" message="Authentication successful. Account: CR8492-XQ" />
+            <LogEntry type="success" message={`Authentication successful. Account: ${user.id}`} />
             <LogEntry type="info" message="Subscribed to R_100 real-time feed" />
             <LogEntry type="warning" message="High volatility detected in Volatility 100 Index" />
           </div>

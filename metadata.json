@@ -1,5 +1,5 @@
 {
-  "name": "DerivFlow",
+  "name": "TradePulse",
   "description": "A high-performance trading dashboard powered by Deriv API, featuring real-time market data, AI-driven insights, and a polished dark-mode interface.",
   "requestFramePermissions": [],
   "majorCapabilities": []

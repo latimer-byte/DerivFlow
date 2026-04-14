@@ -8,7 +8,14 @@ import { BottomPanel } from './components/BottomPanel';
 import { Markets } from './components/Markets';
 import { Assets } from './components/Assets';
 import { Settings } from './components/Settings';
-import { derivApi, Tick, HistoryPoint } from './services/derivApi';
+import { History } from './components/History';
+import { VibeLogs } from './components/VibeLogs';
+import { Auth } from './components/Auth';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { derivApi, Tick, HistoryPoint, Candle } from './services/derivApi';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 
@@ -18,16 +25,43 @@ export default function App() {
   const [selectedSymbol, setSelectedSymbol] = useState('R_100');
   const [currentTick, setCurrentTick] = useState<Tick | null>(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
+  const [candles, setCandles] = useState<Candle[]>([]);
   const [isReady, setIsReady] = useState(false);
-  const [balance, setBalance] = useState(12450.00);
-  const [user, setUser] = useState({
-    name: 'Alex Rivera',
-    id: 'CR8492-XQ',
-    email: 'alex@example.com'
+  const [balance, setBalance] = useState(10000.00);
+  const [user, setUser] = useState<any>(() => {
+    const saved = localStorage.getItem('tradepulse_user');
+    return saved ? JSON.parse(saved) : null;
   });
   const [activeTrades, setActiveTrades] = useState<any[]>([]);
   const [tradeHistory, setTradeHistory] = useState<any[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  // Firebase Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const userData = {
+          name: firebaseUser.displayName || 'User',
+          email: firebaseUser.email,
+          uid: firebaseUser.uid,
+          id: user?.id || `CR${Math.floor(Math.random() * 9000 + 1000)}`
+        };
+        setUser(userData);
+        localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Theme management
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   // Initialize market data
   useEffect(() => {
@@ -38,17 +72,52 @@ export default function App() {
       try {
         console.log(`Initializing market for ${selectedSymbol}...`);
         
-        // Try to get history
-        const initialHistory = await derivApi.getHistory(selectedSymbol, 100);
+        // Try to get history and candles
+        const [initialHistory, initialCandles] = await Promise.all([
+          derivApi.getHistory(selectedSymbol, 100),
+          derivApi.getCandles(selectedSymbol, 60, 100)
+        ]);
+
         setHistory(initialHistory);
+        setCandles(initialCandles);
         setIsReady(true);
 
         // Subscribe to ticks
         unsubscribe = derivApi.subscribeTicks(selectedSymbol, (tick) => {
           setCurrentTick(tick);
+          
+          // Update history
           setHistory(prev => {
             const newHistory = [...prev, { epoch: tick.epoch, quote: tick.quote }];
             return newHistory.slice(-100);
+          });
+
+          // Update candles
+          setCandles(prev => {
+            if (prev.length === 0) return prev;
+            const lastCandle = prev[prev.length - 1];
+            const candleInterval = 60; // 1 minute
+            
+            if (tick.epoch < lastCandle.epoch + candleInterval) {
+              // Update current candle
+              const updatedCandle = {
+                ...lastCandle,
+                high: Math.max(lastCandle.high, tick.quote),
+                low: Math.min(lastCandle.low, tick.quote),
+                close: tick.quote
+              };
+              return [...prev.slice(0, -1), updatedCandle];
+            } else {
+              // Start new candle
+              const newCandle = {
+                epoch: Math.floor(tick.epoch / candleInterval) * candleInterval,
+                open: tick.quote,
+                high: tick.quote,
+                low: tick.quote,
+                close: tick.quote
+              };
+              return [...prev.slice(1), newCandle];
+            }
           });
         });
       } catch (error) {
@@ -63,7 +132,9 @@ export default function App() {
             if (history.length === 0) {
               // Provide a base price based on the symbol if possible
               const basePrice = selectedSymbol.startsWith('R_') ? 1000 : 1.0;
-              setHistory([{ epoch: Math.floor(Date.now() / 1000), quote: basePrice }]);
+              const now = Math.floor(Date.now() / 1000);
+              setHistory([{ epoch: now, quote: basePrice }]);
+              setCandles([{ epoch: now, open: basePrice, high: basePrice * 1.01, low: basePrice * 0.99, close: basePrice }]);
             }
           }
         }, 5000);
@@ -76,6 +147,20 @@ export default function App() {
       if (unsubscribe) unsubscribe();
     };
   }, [selectedSymbol]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('tradepulse_user');
+    firebaseLogout();
+    setUser(null);
+  };
+
+  if (!user) {
+    return (
+      <ErrorBoundary>
+        <Auth onLogin={setUser} />
+      </ErrorBoundary>
+    );
+  }
 
   const renderDashboard = () => (
     <div className="flex flex-col h-full lg:overflow-hidden">
@@ -90,10 +175,10 @@ export default function App() {
         {/* Main Chart Area */}
         <div className="flex-1 flex flex-col min-w-0 border-b lg:border-b-0 lg:border-r border-border">
           <div className="h-[300px] sm:h-[400px] lg:flex-1 min-h-0">
-            <TradingChart data={history} symbol={selectedSymbol} />
+            <TradingChart data={history} candles={candles} symbol={selectedSymbol} />
           </div>
           <div className="hidden sm:block">
-            <BottomPanel activeTrades={activeTrades} tradeHistory={tradeHistory} />
+            <BottomPanel activeTrades={activeTrades} tradeHistory={tradeHistory} user={user} />
           </div>
         </div>
 
@@ -103,13 +188,25 @@ export default function App() {
             currentPrice={currentTick?.quote || 0} 
             balance={balance} 
             setBalance={setBalance}
+            symbol={selectedSymbol}
             onTrade={(trade) => {
               setActiveTrades(prev => [trade, ...prev]);
+            }}
+            onTradeComplete={(trade, result, payout) => {
+              setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
+              setTradeHistory(prev => [{
+                ...trade,
+                result,
+                payout,
+                exit: currentTick?.quote || trade.entryPrice,
+                profit: result === 'win' ? payout - trade.amount : -trade.amount,
+                timestamp: Date.now()
+              }, ...prev]);
             }}
           />
           {/* Mobile version of BottomPanel or just show it below */}
           <div className="sm:hidden border-t border-border">
-            <BottomPanel activeTrades={activeTrades} tradeHistory={tradeHistory} />
+            <BottomPanel activeTrades={activeTrades} tradeHistory={tradeHistory} user={user} />
           </div>
         </div>
       </div>
@@ -138,10 +235,28 @@ export default function App() {
             <Assets balance={balance} setBalance={setBalance} />
           </div>
         );
+      case 'history':
+        return (
+          <div className="p-8">
+            <History tradeHistory={tradeHistory} />
+          </div>
+        );
+      case 'vibe-logs':
+        return (
+          <div className="p-8">
+            <VibeLogs />
+          </div>
+        );
       case 'settings':
         return (
           <div className="p-8">
-            <Settings user={user} setUser={setUser} />
+            <Settings 
+              user={user} 
+              setUser={setUser} 
+              onLogout={handleLogout}
+              isDarkMode={isDarkMode} 
+              setIsDarkMode={setIsDarkMode} 
+            />
           </div>
         );
       default:
@@ -158,16 +273,22 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-background text-text-primary font-sans selection:bg-brand/30 transition-colors duration-300 overflow-hidden">
-      {/* Sidebar - Responsive */}
+    <ErrorBoundary>
+      <div className="flex h-screen bg-background text-text-primary font-sans selection:bg-brand/30 transition-colors duration-300 overflow-hidden">
+        {/* Sidebar - Responsive */}
       <div className={cn(
         "fixed inset-y-0 left-0 z-50 lg:relative lg:translate-x-0 transition-transform duration-300",
         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <Sidebar activeTab={activeTab} setActiveTab={(tab) => {
-          setActiveTab(tab);
-          setIsSidebarOpen(false);
-        }} onClose={() => setIsSidebarOpen(false)} />
+        <Sidebar 
+          user={user}
+          activeTab={activeTab} 
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            setIsSidebarOpen(false);
+          }} 
+          onClose={() => setIsSidebarOpen(false)} 
+        />
       </div>
 
       {/* Mobile Overlay */}
@@ -186,11 +307,14 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <Header 
           user={user} 
+          balance={balance}
           onMenuClick={() => setIsSidebarOpen(true)} 
           onCategorySelect={(cat) => {
             setMarketCategory(cat);
             setActiveTab('markets');
           }}
+          onLogout={handleLogout}
+          onSettingsClick={() => setActiveTab('settings')}
         />
         
         <div className="flex-1 overflow-hidden relative">
@@ -209,5 +333,6 @@ export default function App() {
         </div>
       </main>
     </div>
+    </ErrorBoundary>
   );
 }

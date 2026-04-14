@@ -19,12 +19,20 @@ const watchlist = [
 ];
 
 interface SidebarProps {
+  user: {
+    name: string;
+    id: string;
+  };
   activeTab: string;
   setActiveTab: (id: string) => void;
   onClose?: () => void;
 }
 
-export function Sidebar({ activeTab, setActiveTab, onClose }: SidebarProps) {
+export function Sidebar({ user, activeTab, setActiveTab, onClose }: SidebarProps) {
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   return (
     <div className="w-64 bg-card border-r border-border flex flex-col h-screen sticky top-0 transition-colors duration-300">
       <div className="p-4 flex items-center justify-between border-b border-border bg-background/30">
@@ -32,7 +40,7 @@ export function Sidebar({ activeTab, setActiveTab, onClose }: SidebarProps) {
           <div className="w-8 h-8 bg-brand rounded flex items-center justify-center">
             <Zap className="text-background w-5 h-5 fill-background" />
           </div>
-          <span className="text-lg font-bold text-text-primary tracking-tight">DerivFlow</span>
+          <span className="text-lg font-bold text-text-primary tracking-tight">TradePulse</span>
         </div>
         <button 
           onClick={onClose}
@@ -95,21 +103,6 @@ export function Sidebar({ activeTab, setActiveTab, onClose }: SidebarProps) {
         </div>
       </div>
 
-      <div className="p-4 border-t border-border bg-background/30">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-text-secondary">
-            AR
-          </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-bold text-text-primary">Alex Rivera</span>
-            <span className="text-[10px] text-text-muted">CR8492-XQ</span>
-          </div>
-        </div>
-        <div className="flex items-center justify-between text-[10px] font-bold text-text-muted uppercase tracking-widest">
-          <span>Balance</span>
-          <span className="text-text-primary font-price">$12,450.00</span>
-        </div>
-      </div>
     </div>
   );
 }

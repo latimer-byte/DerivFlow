@@ -13,10 +13,13 @@ const allMarkets = [
   { symbol: 'cryBTCUSD', name: 'Bitcoin/USD', price: 64200.50, change: 4.8, category: 'Crypto', volatility: 'Extreme' },
   { symbol: 'cryETHUSD', name: 'Ethereum/USD', price: 3450.20, change: 3.2, category: 'Crypto', volatility: 'High' },
   { symbol: 'crySOLUSD', name: 'Solana/USD', price: 145.60, change: 7.4, category: 'Crypto', volatility: 'Extreme' },
-  { symbol: 'XAUUSD', name: 'Gold/USD', price: 2350.40, change: 0.25, category: 'Commodities', volatility: 'Medium' },
-  { symbol: 'XAGUSD', name: 'Silver/USD', price: 28.15, change: -0.8, category: 'Commodities', volatility: 'High' },
-  { symbol: 'SPC500', name: 'S&P 500', price: 5120.30, change: 1.1, category: 'Indices', volatility: 'Medium' },
-  { symbol: 'NDAQ100', name: 'Nasdaq 100', price: 18200.45, change: 1.4, category: 'Indices', volatility: 'High' },
+  { symbol: 'frxXAUUSD', name: 'Gold/USD', price: 2350.40, change: 0.25, category: 'Commodities', volatility: 'Medium' },
+  { symbol: 'frxXAGUSD', name: 'Silver/USD', price: 28.15, change: -0.8, category: 'Commodities', volatility: 'High' },
+  { symbol: 'frxAUDUSD', name: 'AUD/USD', price: 0.6540, change: 0.15, category: 'Forex', volatility: 'Medium' },
+  { symbol: 'frxUSDCAD', name: 'USD/CAD', price: 1.3520, change: -0.10, category: 'Forex', volatility: 'Medium' },
+  { symbol: 'STX_SP500', name: 'S&P 500', price: 5200.50, change: 1.2, category: 'Indices', volatility: 'Medium' },
+  { symbol: 'STX_NAS100', name: 'Nasdaq 100', price: 18200.30, change: 1.5, category: 'Indices', volatility: 'High' },
+  { symbol: 'STX_DJI', name: 'Dow Jones', price: 39100.20, change: 0.8, category: 'Indices', volatility: 'Medium' },
 ];
 
 interface MarketsProps {
@@ -27,6 +30,10 @@ interface MarketsProps {
 export function Markets({ onSelect, initialCategory = 'Derived' }: MarketsProps) {
   const [selectedCategory, setSelectedCategory] = React.useState(initialCategory);
   const [searchQuery, setSearchQuery] = React.useState('');
+
+  React.useEffect(() => {
+    setSelectedCategory(initialCategory);
+  }, [initialCategory]);
 
   const filteredMarkets = React.useMemo(() => {
     return allMarkets.filter(market => {

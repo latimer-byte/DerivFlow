@@ -49,7 +49,7 @@ export function VibeLogs() {
           Vibe-Coding Documentation
         </h2>
         <p className="text-gray-400 text-lg">
-          A transparent look at how AI helped architect, code, and troubleshoot DerivFlow.
+          A transparent look at how AI helped architect, code, and troubleshoot TradePulse.
         </p>
       </div>
 
@@ -87,7 +87,7 @@ export function VibeLogs() {
         <h3 className="text-xl font-bold text-white mb-2">The "Vibe" Verdict</h3>
         <p className="text-gray-400">
           Building with AI isn't just about speed; it's about expanding the horizon of what's possible. 
-          DerivFlow was built in record time by treating the AI as a senior architect and a tireless pair programmer.
+          TradePulse was built in record time by treating the AI as a senior architect and a tireless pair programmer.
         </p>
       </div>
     </div>

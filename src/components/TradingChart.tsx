@@ -19,14 +19,38 @@ import { cn } from '@/lib/utils';
 
 interface TradingChartProps {
   data: { epoch: number; quote: number }[];
+  candles?: { epoch: number; open: number; high: number; low: number; close: number }[];
   symbol: string;
 }
 
-export function TradingChart({ data, symbol }: TradingChartProps) {
-  const [chartType, setChartType] = useState<'area' | 'bar'>('area');
+export function TradingChart({ data, candles, symbol }: TradingChartProps) {
+  const [chartType, setChartType] = useState<'area' | 'candle'>('candle');
   const [showSMA, setShowSMA] = useState(false);
 
   const chartData = useMemo(() => {
+    if (chartType === 'candle' && candles && candles.length > 0) {
+      return candles.map((c, idx) => {
+        let sma = null;
+        if (idx >= 10) {
+          const slice = candles.slice(idx - 10, idx + 1);
+          sma = slice.reduce((acc, curr) => acc + curr.close, 0) / slice.length;
+        }
+        return {
+          time: format(new Date(c.epoch * 1000), 'HH:mm'),
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+          // For Recharts Bar to work as a range
+          body: [c.open, c.close],
+          wick: [c.low, c.high],
+          isUp: c.close >= c.open,
+          sma: sma,
+          timestamp: c.epoch
+        };
+      });
+    }
+
     if (!data || data.length === 0) return [];
     
     return data.map((point, idx) => {
@@ -43,28 +67,33 @@ export function TradingChart({ data, symbol }: TradingChartProps) {
         timestamp: point.epoch
       };
     });
-  }, [data]);
+  }, [data, candles, chartType]);
 
-  const { minPrice, maxPrice, domain } = useMemo(() => {
-    if (!data || data.length === 0) {
-      return { minPrice: 0, maxPrice: 0, domain: [0, 100] };
+  const { domain } = useMemo(() => {
+    let prices: number[] = [];
+    if (chartType === 'candle' && candles && candles.length > 0) {
+      prices = candles.flatMap(c => [c.high, c.low]);
+    } else if (data && data.length > 0) {
+      prices = data.map(d => d.quote);
     }
-    const prices = data.map(d => d.quote);
+
+    if (prices.length === 0) {
+      return { domain: [0, 100] };
+    }
+
     const min = Math.min(...prices);
     const max = Math.max(...prices);
     
     if (min === max) {
-      return { minPrice: min, maxPrice: max, domain: [min * 0.99, max * 1.01] };
+      return { domain: [min * 0.99, max * 1.01] };
     }
     
     return {
-      minPrice: min,
-      maxPrice: max,
-      domain: [min * 0.9998, max * 1.0002]
+      domain: [min * 0.9995, max * 1.0005]
     };
-  }, [data]);
+  }, [data, candles, chartType]);
 
-  const currentPrice = data[data.length - 1]?.quote || 0;
+  const currentPrice = data[data.length - 1]?.quote || (candles && candles[candles.length - 1]?.close) || 0;
 
   return (
     <div className="w-full h-full bg-card flex flex-col border-r border-border">
@@ -73,12 +102,12 @@ export function TradingChart({ data, symbol }: TradingChartProps) {
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xs sm:text-sm font-bold tracking-tight text-text-primary">{symbol}</span>
-            <span className="hidden xs:inline text-[9px] sm:text-[10px] font-medium text-text-muted uppercase tracking-widest">Index</span>
+            <span className="hidden xs:inline text-[9px] sm:text-[10px] font-medium text-text-muted uppercase tracking-widest">Live</span>
           </div>
           
           <div className="flex bg-background border border-border rounded p-0.5">
-            <ChartTypeBtn active={chartType === 'area'} onClick={() => setChartType('area')} label="Area" />
-            <ChartTypeBtn active={chartType === 'bar'} onClick={() => setChartType('bar')} label="Bars" />
+            <ChartTypeBtn active={chartType === 'candle'} onClick={() => setChartType('candle')} label="Candles" />
+            <ChartTypeBtn active={chartType === 'area'} onClick={() => setChartType('area')} label="Line" />
           </div>
 
           <div className="hidden sm:flex gap-1">
@@ -122,44 +151,83 @@ export function TradingChart({ data, symbol }: TradingChartProps) {
             <ComposedChart data={chartData} margin={{ top: 10, right: 60, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#1E90FF" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="#1E90FF" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="var(--color-brand)" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="var(--color-brand)" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#2A2F36" strokeOpacity={0.5} />
+              <CartesianGrid strokeDasharray="2 2" vertical={true} stroke="var(--color-border)" strokeOpacity={0.8} />
               <XAxis 
                 dataKey="time" 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fill: '#6E7681', fontSize: 10, fontFamily: 'Inter' }}
+                axisLine={{ stroke: 'var(--color-text-primary)', strokeWidth: 1 }} 
+                tickLine={{ stroke: 'var(--color-text-primary)' }} 
+                tick={{ fill: 'var(--color-text-secondary)', fontSize: 10, fontFamily: 'Inter' }}
                 minTickGap={50}
               />
               <YAxis 
                 orientation="right"
                 domain={domain}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#8B949E', fontSize: 10, fontFamily: 'Roboto Mono' }}
+                axisLine={{ stroke: 'var(--color-text-primary)', strokeWidth: 1 }}
+                tickLine={{ stroke: 'var(--color-text-primary)' }}
+                tick={{ fill: 'var(--color-text-secondary)', fontSize: 10, fontFamily: 'Roboto Mono' }}
                 mirror={false}
-                width={50}
+                width={60}
               />
               <Tooltip 
-                content={<CustomTooltip />}
-                cursor={{ stroke: '#6E7681', strokeDasharray: '3 3' }}
+                content={<CustomTooltip chartType={chartType} />}
+                cursor={{ stroke: 'var(--color-text-muted)', strokeDasharray: '3 3' }}
               />
               
+              {/* Current Price Line */}
               <ReferenceLine 
                 y={currentPrice} 
-                stroke="#1E90FF" 
+                stroke="var(--color-text-primary)" 
                 strokeDasharray="3 3" 
                 label={{ 
                   position: 'right', 
-                  value: currentPrice.toFixed(2), 
-                  fill: '#1E90FF', 
+                  value: currentPrice.toFixed(4), 
+                  fill: 'var(--color-text-primary)', 
                   fontSize: 10, 
                   fontFamily: 'Roboto Mono',
                   fontWeight: 'bold',
-                  backgroundColor: '#0D1117'
+                  className: "bg-background px-1"
+                }} 
+              />
+
+              {/* Mock TP/SL Lines (MT4 Style) */}
+              <ReferenceLine 
+                y={currentPrice * 1.002} 
+                stroke="#F26624" 
+                strokeDasharray="5 5" 
+                label={{ 
+                  position: 'left', 
+                  value: `#60643043 tp, ${(currentPrice * 0.002 * 10000).toFixed(1)} pips`, 
+                  fill: '#F26624', 
+                  fontSize: 9,
+                  fontFamily: 'Roboto Mono'
+                }} 
+              />
+              <ReferenceLine 
+                y={currentPrice * 0.998} 
+                stroke="#F26624" 
+                strokeDasharray="5 5" 
+                label={{ 
+                  position: 'left', 
+                  value: `#60643043 sl`, 
+                  fill: '#F26624', 
+                  fontSize: 9,
+                  fontFamily: 'Roboto Mono'
+                }} 
+              />
+              <ReferenceLine 
+                y={currentPrice * 1.0005} 
+                stroke="#22C55E" 
+                strokeDasharray="5 5" 
+                label={{ 
+                  position: 'left', 
+                  value: `#60643043 buy 0.20`, 
+                  fill: '#22C55E', 
+                  fontSize: 9,
+                  fontFamily: 'Roboto Mono'
                 }} 
               />
 
@@ -167,19 +235,37 @@ export function TradingChart({ data, symbol }: TradingChartProps) {
                 <Area 
                   type="monotone" 
                   dataKey="price" 
-                  stroke="#1E90FF" 
+                  stroke="var(--color-brand)" 
                   strokeWidth={2}
                   fillOpacity={1} 
                   fill="url(#colorPrice)" 
                   isAnimationActive={false}
                 />
               ) : (
-                <Bar 
-                  dataKey="price" 
-                  fill="#1E90FF" 
-                  barSize={2}
-                  isAnimationActive={false}
-                />
+                <>
+                  {/* Wick */}
+                  <Bar 
+                    dataKey="wick" 
+                    fill="var(--color-text-primary)" 
+                    barSize={1}
+                    isAnimationActive={false}
+                  />
+                  {/* Body */}
+                  <Bar 
+                    dataKey="body" 
+                    isAnimationActive={false}
+                    barSize={10}
+                  >
+                    {chartData.map((entry: any, index: number) => (
+                      <rect
+                        key={`rect-${index}`}
+                        fill={entry.isUp ? 'var(--color-card)' : 'var(--color-text-primary)'}
+                        stroke="var(--color-text-primary)"
+                        strokeWidth={1}
+                      />
+                    ))}
+                  </Bar>
+                </>
               )}
 
               {showSMA && (
@@ -215,8 +301,24 @@ function ChartTypeBtn({ active, onClick, label }: any) {
   );
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, chartType }: any) => {
   if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    
+    if (chartType === 'candle') {
+      return (
+        <div className="bg-card border border-border p-3 rounded shadow-2xl min-w-[120px]">
+          <p className="text-[10px] text-text-muted mb-2 font-mono border-b border-border pb-1">{label}</p>
+          <div className="space-y-1">
+            <TooltipRow label="O" value={data.open} />
+            <TooltipRow label="H" value={data.high} />
+            <TooltipRow label="L" value={data.low} />
+            <TooltipRow label="C" value={data.close} color={data.isUp ? 'text-bullish' : 'text-bearish'} />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="bg-card border border-border p-2 rounded shadow-2xl">
         <p className="text-[10px] text-text-muted mb-1 font-mono">{label}</p>
@@ -228,3 +330,14 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   }
   return null;
 };
+
+function TooltipRow({ label, value, color = 'text-text-primary' }: any) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-[10px] font-bold text-text-muted">{label}</span>
+      <span className={cn("text-[10px] font-mono font-bold", color)}>
+        {value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </span>
+    </div>
+  );
+}

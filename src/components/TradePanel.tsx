@@ -6,10 +6,12 @@ interface TradePanelProps {
   currentPrice: number;
   balance: number;
   setBalance: (balance: number) => void;
+  symbol: string;
   onTrade?: (trade: any) => void;
+  onTradeComplete?: (trade: any, result: 'win' | 'loss', payout: number) => void;
 }
 
-export function TradePanel({ currentPrice, balance, setBalance, onTrade }: TradePanelProps) {
+export function TradePanel({ currentPrice, balance, setBalance, symbol, onTrade, onTradeComplete }: TradePanelProps) {
   const [amount, setAmount] = useState('100');
   const [duration, setDuration] = useState('60');
   const [isTrading, setIsTrading] = useState(false);
@@ -17,17 +19,22 @@ export function TradePanel({ currentPrice, balance, setBalance, onTrade }: Trade
   const handleTrade = (type: 'buy' | 'sell') => {
     const val = parseFloat(amount);
     if (isNaN(val) || val <= 0) return;
-    if (val > balance) return;
+    if (val > balance) {
+      alert('Insufficient balance');
+      return;
+    }
 
     setIsTrading(true);
     
     // Create trade object
+    const tradeId = Math.random().toString(36).substring(2, 10).toUpperCase();
     const trade = {
+      id: tradeId,
       type,
       amount: val,
       entryPrice: currentPrice,
       duration: parseInt(duration),
-      symbol: 'R_100',
+      symbol: symbol,
       timestamp: Date.now()
     };
 
@@ -36,16 +43,14 @@ export function TradePanel({ currentPrice, balance, setBalance, onTrade }: Trade
     // Simulate trade execution
     setTimeout(() => {
       const win = Math.random() > 0.45; // 55% win rate for demo
-      const payout = val * 0.955;
+      const payout = win ? val * 0.95 : -val;
+      const result = win ? 'win' : 'loss';
       
-      if (win) {
-        setBalance(balance + payout);
-      } else {
-        setBalance(balance - val);
-      }
+      setBalance(balance + payout);
+      onTradeComplete?.(trade, result, win ? val * 1.95 : 0);
       
       setIsTrading(false);
-    }, 1500);
+    }, 2000);
   };
 
   return (

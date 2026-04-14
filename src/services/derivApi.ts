@@ -3,7 +3,7 @@
  * Handles WebSocket connection to Deriv API
  */
 
-const APP_ID = '31063'; // Deriv.com official public app_id
+const APP_ID = '1089'; // Standard public app_id
 const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`;
 
 export type Tick = {
@@ -18,6 +18,14 @@ export type HistoryPoint = {
   quote: number;
 };
 
+export type Candle = {
+  epoch: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
 class DerivService {
   private socket: WebSocket | null = null;
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
@@ -25,6 +33,8 @@ class DerivService {
   private messageQueue: any[] = [];
   private pingInterval: any = null;
   private activeSubscriptions: Map<string, string> = new Map(); // symbol -> subscriptionId
+  private subscriptionCounts: Map<string, number> = new Map(); // symbol -> count
+  private reqIdCounter = 0;
 
   constructor() {
     this.connect();
@@ -56,11 +66,21 @@ class DerivService {
         const reqId = data.req_id;
 
         if (data.error) {
-          console.error('Deriv API Error:', data.error.message);
+          // Special handling for "already subscribed" - we can ignore it if we're tracking correctly
+          if (data.error.code === 'AlreadySubscribed') {
+            console.warn(`Deriv API: Already subscribed to ${data.error.details?.symbol || 'symbol'}`);
+          } else {
+            console.error(`Deriv API Error (${msgType}):`, data.error.message);
+          }
+          
+          if (reqId !== undefined) {
+            this.trigger(`${msgType}_${reqId}`, data);
+          }
+          return;
         }
 
         // Store subscription ID if present
-        if (data.subscription && data.tick) {
+        if (data.subscription && data.tick && data.tick.symbol) {
           this.activeSubscriptions.set(data.tick.symbol, data.subscription.id);
         }
         
@@ -68,7 +88,7 @@ class DerivService {
         this.trigger(msgType, data);
         
         // Handle specific request ID listeners
-        if (reqId) {
+        if (reqId !== undefined) {
           this.trigger(`${msgType}_${reqId}`, data);
         }
         
@@ -126,14 +146,25 @@ class DerivService {
   }
 
   public subscribeTicks(symbol: string, callback: (tick: Tick) => void) {
-    console.log(`Subscribing to ticks for ${symbol}`);
-    this.send({
-      ticks: symbol,
-      subscribe: 1,
-    });
+    const currentCount = this.subscriptionCounts.get(symbol) || 0;
+    this.subscriptionCounts.set(symbol, currentCount + 1);
+
+    const reqId = ++this.reqIdCounter;
+    
+    // Only send subscribe request if this is the first listener for this symbol
+    if (currentCount === 0) {
+      console.log(`Subscribing to ticks for ${symbol} (req_id: ${reqId})`);
+      this.send({
+        ticks: symbol,
+        subscribe: 1,
+        req_id: reqId
+      });
+    } else {
+      console.log(`Adding additional listener for ${symbol} (existing subscription)`);
+    }
     
     const listener = (data: any) => {
-      if (data.msg_type === 'tick' && data.tick.symbol === symbol) {
+      if (data.msg_type === 'tick' && data.tick && data.tick.symbol === symbol) {
         callback({
           symbol: data.tick.symbol,
           quote: data.tick.quote,
@@ -144,14 +175,22 @@ class DerivService {
     };
     
     this.on('tick', listener);
+
     return () => {
-      console.log(`Unsubscribing from ticks for ${symbol}`);
-      const subId = this.activeSubscriptions.get(symbol);
-      if (subId) {
-        this.send({ forget: subId });
-        this.activeSubscriptions.delete(symbol);
+      const count = this.subscriptionCounts.get(symbol) || 0;
+      if (count <= 1) {
+        this.subscriptionCounts.delete(symbol);
+        console.log(`Unsubscribing from ticks for ${symbol} (last listener)`);
+        const subId = this.activeSubscriptions.get(symbol);
+        if (subId) {
+          this.send({ forget: subId });
+          this.activeSubscriptions.delete(symbol);
+        } else {
+          this.send({ forget_all: 'ticks' });
+        }
       } else {
-        this.send({ forget_all: 'ticks' });
+        this.subscriptionCounts.set(symbol, count - 1);
+        console.log(`Removing one listener for ${symbol} (${count - 1} remaining)`);
       }
       this.off('tick', listener);
     };
@@ -159,18 +198,18 @@ class DerivService {
 
   public getHistory(symbol: string, count: number = 100) {
     return new Promise<HistoryPoint[]>((resolve, reject) => {
-      const requestId = `history_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-      console.log(`Requesting history for ${symbol} (req_id: ${requestId})`);
+      const reqId = ++this.reqIdCounter;
+      console.log(`Requesting history for ${symbol} (req_id: ${reqId})`);
       
       const timeout = setTimeout(() => {
-        this.off(`history_${requestId}`, listener);
-        reject(new Error(`History request for ${symbol} timed out`));
-      }, 15000);
+        this.off(`history_${reqId}`, listener);
+        reject(new Error(`History request for ${symbol} timed out (req_id: ${reqId})`));
+      }, 20000);
 
       const listener = (data: any) => {
-        if (data.msg_type === 'history' && data.req_id === requestId) {
+        if (data.msg_type === 'history' && data.req_id === reqId) {
           clearTimeout(timeout);
-          this.off(`history_${requestId}`, listener);
+          this.off(`history_${reqId}`, listener);
           
           if (data.error) {
             reject(new Error(data.error.message));
@@ -190,16 +229,65 @@ class DerivService {
         }
       };
 
-      this.on(`history_${requestId}`, listener);
+      this.on(`history_${reqId}`, listener);
 
       this.send({
         ticks_history: symbol,
         adjust_start_time: 1,
         count: count,
         end: 'latest',
-        start: 1,
         style: 'ticks',
-        req_id: requestId,
+        req_id: reqId,
+      });
+    });
+  }
+
+  public getCandles(symbol: string, granularity: number = 60, count: number = 100) {
+    return new Promise<Candle[]>((resolve, reject) => {
+      const reqId = ++this.reqIdCounter;
+      console.log(`Requesting candles for ${symbol} (req_id: ${reqId})`);
+      
+      const timeout = setTimeout(() => {
+        this.off(`candles_${reqId}`, listener);
+        reject(new Error(`Candles request for ${symbol} timed out (req_id: ${reqId})`));
+      }, 20000);
+
+      const listener = (data: any) => {
+        if (data.msg_type === 'candles' && data.req_id === reqId) {
+          clearTimeout(timeout);
+          this.off(`candles_${reqId}`, listener);
+          
+          if (data.error) {
+            reject(new Error(data.error.message));
+            return;
+          }
+
+          if (!data.candles) {
+            reject(new Error('No candles data received'));
+            return;
+          }
+
+          const candles = data.candles.map((c: any) => ({
+            epoch: c.epoch,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+          }));
+          resolve(candles);
+        }
+      };
+
+      this.on(`candles_${reqId}`, listener);
+
+      this.send({
+        ticks_history: symbol,
+        adjust_start_time: 1,
+        count: count,
+        end: 'latest',
+        style: 'candles',
+        granularity: granularity,
+        req_id: reqId,
       });
     });
   }

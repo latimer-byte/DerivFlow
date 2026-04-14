@@ -10,11 +10,13 @@ interface SettingsProps {
     email: string;
   };
   setUser: (user: any) => void;
+  onLogout: () => void;
+  isDarkMode: boolean;
+  setIsDarkMode: (isDark: boolean) => void;
 }
 
-export function Settings({ user, setUser }: SettingsProps) {
+export function Settings({ user, setUser, onLogout, isDarkMode, setIsDarkMode }: SettingsProps) {
   const [isLogin, setIsLogin] = useState(true);
-  const [isDarkMode, setIsDarkMode] = useState(true);
   const [activeSection, setActiveSection] = useState('profile');
   const [isProcessing, setIsProcessing] = useState(false);
   const [apiKey, setApiKey] = useState('');
@@ -29,7 +31,6 @@ export function Settings({ user, setUser }: SettingsProps) {
 
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
-    document.documentElement.classList.toggle('dark');
   };
 
   const handleAuth = (e: React.FormEvent) => {
@@ -39,10 +40,12 @@ export function Settings({ user, setUser }: SettingsProps) {
       setIsProcessing(false);
       
       const newUser = {
-        name: isLogin ? (formData.email.split('@')[0] || 'User') : formData.name,
+        name: isLogin ? (formData.name || formData.email.split('@')[0] || 'User') : formData.name,
         email: formData.email,
-        id: Math.floor(1000 + Math.random() * 9000) + '-XQ'
+        id: 'CR' + Math.floor(100000 + Math.random() * 900000)
       };
+      
+      localStorage.setItem('tradepulse_user', JSON.stringify(newUser));
       setUser(newUser);
       
       alert(isLogin ? `Welcome back, ${newUser.name}!` : 'Account created successfully!');
@@ -124,6 +127,27 @@ export function Settings({ user, setUser }: SettingsProps) {
         <div className="lg:col-span-2 space-y-8">
           {activeSection === 'profile' && (
             <>
+              {/* Current User Info */}
+              <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl mb-8">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center text-2xl font-bold text-brand">
+                      {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-foreground">{user.name}</h3>
+                      <p className="text-sm text-muted-foreground font-mono">{user.id}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={onLogout}
+                    className="px-4 py-2 text-xs font-bold text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all border border-rose-500/20"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+
               {/* Auth Section */}
               <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl">
                 <div className="flex items-center justify-center gap-8 mb-8 border-b border-border pb-6">
@@ -283,7 +307,61 @@ export function Settings({ user, setUser }: SettingsProps) {
             </div>
           )}
 
-          {activeSection !== 'profile' && activeSection !== 'api' && (
+          {activeSection === 'notifications' && (
+            <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl space-y-6">
+              <h4 className="text-xl font-bold text-foreground mb-4">Notification Preferences</h4>
+              <div className="space-y-4">
+                <ToggleSetting 
+                  label="Trade Executions" 
+                  description="Receive alerts when your orders are filled or cancelled."
+                  active={true}
+                />
+                <ToggleSetting 
+                  label="Price Alerts" 
+                  description="Get notified when assets reach your target prices."
+                  active={true}
+                />
+                <ToggleSetting 
+                  label="Market News" 
+                  description="Daily digest of important market movements and AI insights."
+                  active={false}
+                />
+                <ToggleSetting 
+                  label="Security Alerts" 
+                  description="Immediate notification on login from new devices or password changes."
+                  active={true}
+                />
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'privacy' && (
+            <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl space-y-6">
+              <h4 className="text-xl font-bold text-foreground mb-4">Privacy & Security</h4>
+              <div className="space-y-4">
+                <ToggleSetting 
+                  label="Two-Factor Authentication" 
+                  description="Add an extra layer of security to your account."
+                  active={false}
+                />
+                <ToggleSetting 
+                  label="Public Profile" 
+                  description="Allow other traders to see your performance stats."
+                  active={true}
+                />
+                <ToggleSetting 
+                  label="Data Sharing" 
+                  description="Share anonymous trading data to improve AI insights."
+                  active={true}
+                />
+              </div>
+              <div className="pt-6 border-t border-border">
+                <button className="text-rose-500 text-sm font-bold hover:underline">Delete Account & Data</button>
+              </div>
+            </div>
+          )}
+
+          {activeSection !== 'profile' && activeSection !== 'api' && activeSection !== 'notifications' && activeSection !== 'privacy' && (
             <div className="bg-card border border-border rounded-[2rem] p-12 flex flex-col items-center justify-center text-center space-y-4 shadow-xl">
               <div className="w-20 h-20 bg-secondary rounded-full flex items-center justify-center mb-4 border border-border">
                 <span className="text-4xl">🛠️</span>

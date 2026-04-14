@@ -21,10 +21,10 @@ const getMarketName = (symbol: string) => {
     'cryBTCUSD': 'Bitcoin/USD',
     'cryETHUSD': 'Ethereum/USD',
     'crySOLUSD': 'Solana/USD',
-    'XAUUSD': 'Gold/USD',
-    'XAGUSD': 'Silver/USD',
-    'SPC500': 'S&P 500',
-    'NDAQ100': 'Nasdaq 100',
+    'frxXAUUSD': 'Gold/USD',
+    'frxXAGUSD': 'Silver/USD',
+    'frxAUDUSD': 'AUD/USD',
+    'frxUSDCAD': 'USD/CAD',
   };
   return names[symbol] || symbol;
 };

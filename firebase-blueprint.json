@@ -1,0 +1,45 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and account information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "id": { "type": "string", "description": "Unique trading ID" },
+        "balance": { "type": "number", "description": "Current account balance" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["name", "email", "id", "balance"]
+    },
+    "Trade": {
+      "title": "Trade",
+      "description": "Trading transaction record",
+      "type": "object",
+      "properties": {
+        "symbol": { "type": "string", "description": "Market symbol (e.g., R_100)" },
+        "type": { "type": "string", "enum": ["buy", "sell"], "description": "Trade direction" },
+        "entry": { "type": "number", "description": "Entry price" },
+        "exit": { "type": "number", "description": "Exit price" },
+        "amount": { "type": "number", "description": "Investment amount" },
+        "profit": { "type": "number", "description": "Profit or loss amount" },
+        "timestamp": { "type": "number", "description": "Trade execution time" },
+        "result": { "type": "string", "enum": ["win", "loss"], "description": "Trade outcome" },
+        "payout": { "type": "number", "description": "Payout amount" },
+        "userId": { "type": "string", "description": "UID of the user who placed the trade" }
+      },
+      "required": ["symbol", "type", "entry", "amount", "timestamp", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private user profile data"
+    },
+    "/trades/{tradeId}": {
+      "schema": "Trade",
+      "description": "Global trade records, filtered by userId for privacy"
+    }
+  }
+}
