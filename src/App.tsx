@@ -223,6 +223,7 @@ export default function App() {
               setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
               const newHistoryItem = {
                 ...trade,
+                entry: trade.entryPrice, // Map entryPrice to entry for History component
                 result,
                 payout,
                 exit: currentTick?.quote || trade.entryPrice,

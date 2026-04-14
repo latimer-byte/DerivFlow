@@ -109,19 +109,19 @@ export function History({ tradeHistory }: HistoryProps) {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="text-xs font-mono text-text-secondary">{trade.entry.toFixed(4)}</span>
-                        <span className="text-xs font-mono text-text-muted">{trade.exit.toFixed(4)}</span>
+                        <span className="text-xs font-mono text-text-secondary">{(trade.entry || 0).toFixed(4)}</span>
+                        <span className="text-xs font-mono text-text-muted">{(trade.exit || 0).toFixed(4)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-xs font-bold text-text-primary">${trade.amount.toFixed(2)}</span>
+                      <span className="text-xs font-bold text-text-primary">${(trade.amount || 0).toFixed(2)}</span>
                     </td>
                     <td className="px-6 py-4">
                       <span className={cn(
                         "text-xs font-bold font-mono",
-                        trade.profit >= 0 ? "text-emerald-500" : "text-rose-500"
+                        (trade.profit || 0) >= 0 ? "text-emerald-500" : "text-rose-500"
                       )}>
-                        {trade.profit >= 0 ? '+' : ''}${Math.abs(trade.profit).toFixed(2)}
+                        {(trade.profit || 0) >= 0 ? '+' : ''}${Math.abs(trade.profit || 0).toFixed(2)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
