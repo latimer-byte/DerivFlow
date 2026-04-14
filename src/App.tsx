@@ -14,7 +14,7 @@ import { Auth } from './components/Auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { derivApi, Tick, HistoryPoint, Candle } from './services/derivApi';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -33,7 +33,10 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
   const [activeTrades, setActiveTrades] = useState<any[]>([]);
-  const [tradeHistory, setTradeHistory] = useState<any[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<any[]>(() => {
+    const saved = localStorage.getItem('tradepulse_history');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
@@ -49,6 +52,28 @@ export default function App() {
         };
         setUser(userData);
         localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+        
+        // Fetch trade history from Firestore
+        const tradesRef = collection(db, 'trades');
+        const q = query(
+          tradesRef, 
+          where('userId', '==', firebaseUser.uid),
+          orderBy('timestamp', 'desc'),
+          limit(50)
+        );
+        
+        const unsubscribeTrades = onSnapshot(q, (snapshot) => {
+          const trades = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setTradeHistory(trades);
+          localStorage.setItem('tradepulse_history', JSON.stringify(trades));
+        }, (error) => {
+          handleFirestoreError(error, OperationType.LIST, 'trades');
+        });
+        
+        return () => unsubscribeTrades();
       }
     });
     return () => unsubscribe();
@@ -150,8 +175,10 @@ export default function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('tradepulse_user');
+    localStorage.removeItem('tradepulse_history');
     firebaseLogout();
     setUser(null);
+    setTradeHistory([]);
   };
 
   if (!user) {
@@ -192,16 +219,33 @@ export default function App() {
             onTrade={(trade) => {
               setActiveTrades(prev => [trade, ...prev]);
             }}
-            onTradeComplete={(trade, result, payout) => {
+            onTradeComplete={async (trade, result, payout) => {
               setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
-              setTradeHistory(prev => [{
+              const newHistoryItem = {
                 ...trade,
                 result,
                 payout,
                 exit: currentTick?.quote || trade.entryPrice,
                 profit: result === 'win' ? payout - trade.amount : -trade.amount,
-                timestamp: Date.now()
-              }, ...prev]);
+                timestamp: Date.now(),
+                userId: user?.uid || 'anonymous'
+              };
+              
+              // Save to Firestore if logged in
+              if (user?.uid) {
+                try {
+                  await addDoc(collection(db, 'trades'), newHistoryItem);
+                } catch (error) {
+                  handleFirestoreError(error, OperationType.CREATE, 'trades');
+                }
+              } else {
+                // Fallback to local state if not logged in
+                setTradeHistory(prev => {
+                  const updated = [newHistoryItem, ...prev];
+                  localStorage.setItem('tradepulse_history', JSON.stringify(updated));
+                  return updated;
+                });
+              }
             }}
           />
           {/* Mobile version of BottomPanel or just show it below */}

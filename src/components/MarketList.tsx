@@ -6,7 +6,7 @@ const markets = [
   { symbol: 'R_100', name: 'Volatility 100 Index', price: 1245.20, change: 2.4, category: 'Derived' },
   { symbol: 'R_50', name: 'Volatility 50 Index', price: 450.15, change: -1.2, category: 'Derived' },
   { symbol: 'frxEURUSD', name: 'EUR/USD', price: 1.0842, change: 0.05, category: 'Forex' },
-  { symbol: 'frxGBPUSD', name: 'GBP/USD', price: 1.2650, change: -0.12, category: 'Forex' },
+  { symbol: 'frxXAUUSD', name: 'Gold/USD', price: 2350.40, change: 0.25, category: 'Commodities' },
   { symbol: 'cryBTCUSD', name: 'Bitcoin/USD', price: 64200.50, change: 4.8, category: 'Crypto' },
   { symbol: 'cryETHUSD', name: 'Ethereum/USD', price: 3450.20, change: 3.2, category: 'Crypto' },
 ];
