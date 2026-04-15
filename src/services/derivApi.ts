@@ -5,6 +5,7 @@
 
 const APP_ID = '1089'; // Standard public app_id
 const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`;
+const DEFAULT_TOKEN = '32XhlOqFjz1VagaEisvh8';
 
 export type Tick = {
   symbol: string;
@@ -35,6 +36,8 @@ class DerivService {
   private activeSubscriptions: Map<string, string> = new Map(); // symbol -> subscriptionId
   private subscriptionCounts: Map<string, number> = new Map(); // symbol -> count
   private reqIdCounter = 0;
+  private token: string | null = DEFAULT_TOKEN;
+  private isAuthorized = false;
 
   constructor() {
     this.connect();
@@ -48,6 +51,11 @@ class DerivService {
       this.isConnected = true;
       console.log('Deriv WebSocket Connected');
       
+      // Authorize if token is available
+      if (this.token) {
+        this.authorize(this.token);
+      }
+
       // Start ping to keep connection alive
       this.pingInterval = setInterval(() => {
         this.send({ ping: 1 });
@@ -77,6 +85,18 @@ class DerivService {
             this.trigger(`${msgType}_${reqId}`, data);
           }
           return;
+        }
+
+        // Handle authorization response
+        if (msgType === 'authorize') {
+          this.isAuthorized = true;
+          console.log('Deriv API: Authorized successfully');
+          
+          // Now that we are authorized, we can send queued messages
+          while (this.messageQueue.length > 0) {
+            const msg = this.messageQueue.shift();
+            this.send(msg);
+          }
         }
 
         // Store subscription ID if present
@@ -122,10 +142,21 @@ class DerivService {
 
   public send(data: any) {
     if (this.isConnected && this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify(data));
+      // If it's not an authorize request and we have a token but aren't authorized yet, queue it
+      if (data.authorize === undefined && this.token && !this.isAuthorized) {
+        this.messageQueue.push(data);
+      } else {
+        this.socket.send(JSON.stringify(data));
+      }
     } else {
       this.messageQueue.push(data);
     }
+  }
+
+  public authorize(token: string) {
+    this.token = token;
+    this.isAuthorized = false;
+    this.socket?.send(JSON.stringify({ authorize: token }));
   }
 
   public on(type: string, callback: (data: any) => void) {

@@ -227,7 +227,7 @@ export default function App() {
                 result,
                 payout,
                 exit: currentTick?.quote || trade.entryPrice,
-                profit: result === 'win' ? payout - trade.amount : -trade.amount,
+                profit: payout - trade.amount,
                 timestamp: Date.now(),
                 userId: user?.uid || 'anonymous'
               };

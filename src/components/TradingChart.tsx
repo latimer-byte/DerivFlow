@@ -246,10 +246,16 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
                   {/* Wick */}
                   <Bar 
                     dataKey="wick" 
-                    fill="var(--color-text-primary)" 
-                    barSize={1}
                     isAnimationActive={false}
-                  />
+                    barSize={1}
+                  >
+                    {chartData.map((entry: any, index: number) => (
+                      <rect
+                        key={`wick-${index}`}
+                        fill={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish)'}
+                      />
+                    ))}
+                  </Bar>
                   {/* Body */}
                   <Bar 
                     dataKey="body" 
@@ -258,10 +264,11 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
                   >
                     {chartData.map((entry: any, index: number) => (
                       <rect
-                        key={`rect-${index}`}
-                        fill={entry.isUp ? 'var(--color-card)' : 'var(--color-text-primary)'}
-                        stroke="var(--color-text-primary)"
+                        key={`body-${index}`}
+                        fill={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish)'}
+                        stroke={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish)'}
                         strokeWidth={1}
+                        fillOpacity={entry.isUp ? 0.3 : 1}
                       />
                     ))}
                   </Bar>
