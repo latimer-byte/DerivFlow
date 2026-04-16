@@ -10,11 +10,9 @@ import { Assets } from './components/Assets';
 import { Settings } from './components/Settings';
 import { History } from './components/History';
 import { Analytics } from './components/Analytics';
-import { Leaderboard } from './components/Leaderboard';
-import { VibeLogs } from './components/VibeLogs';
 import { Auth } from './components/Auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, onAuthStateChanged } from './lib/firebase';
+import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, onAuthStateChanged, signInAnonymously } from './lib/firebase';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { derivApi, Tick, HistoryPoint, Candle } from './services/derivApi';
 import { motion, AnimatePresence } from 'motion/react';
@@ -65,28 +63,6 @@ export default function App() {
           };
           setUser(userData);
           localStorage.setItem('tradepulse_user', JSON.stringify(userData));
-          
-          // Fetch trade history from Firestore
-          const tradesRef = collection(db, 'trades');
-          const q = query(
-            tradesRef, 
-            where('userId', '==', firebaseUser.uid),
-            orderBy('timestamp', 'desc'),
-            limit(50)
-          );
-          
-          const unsubscribeTrades = onSnapshot(q, (snapshot) => {
-            const trades = snapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }));
-            setTradeHistory(trades);
-            localStorage.setItem('tradepulse_history', JSON.stringify(trades));
-          }, (error) => {
-            handleFirestoreError(error, OperationType.LIST, 'trades');
-          });
-          
-          return () => unsubscribeTrades();
         }
       });
       return () => unsubscribe();
@@ -94,6 +70,38 @@ export default function App() {
       console.error("Auth listener failed to initialize", error);
     }
   }, []);
+
+  // Trade History Listener
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    console.log('Setting up history listener for:', user.uid);
+    const tradesRef = collection(db, 'trades');
+    // Removed orderBy to avoid index requirements, sorting client-side instead
+    const q = query(
+      tradesRef, 
+      where('userId', '==', user.uid),
+      limit(100)
+    );
+    
+    const unsubscribeTrades = onSnapshot(q, (snapshot) => {
+      const trades = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[];
+      
+      // Sort client-side by timestamp descending
+      const sortedTrades = trades.sort((a, b) => b.timestamp - a.timestamp);
+      
+      setTradeHistory(sortedTrades);
+      localStorage.setItem('tradepulse_history', JSON.stringify(sortedTrades));
+    }, (error) => {
+      console.error("History listener error:", error);
+      // Only log, don't throw to avoid crashing the app
+    });
+    
+    return () => unsubscribeTrades();
+  }, [user?.uid]);
 
   // Theme management
   useEffect(() => {
@@ -112,17 +120,39 @@ export default function App() {
     
     if (token) {
       console.log('Deriv OAuth callback detected');
-      const userData = {
-        name: acct || 'Deriv Trader',
-        id: acct || `CR${Math.floor(Math.random() * 9000 + 1000)}`,
-        email: 'deriv-account',
-        uid: acct || token,
-        authType: 'deriv'
-      };
       
-      setUser(userData);
-      localStorage.setItem('tradepulse_user', JSON.stringify(userData));
-      derivApi.authorize(token);
+      // Silent anonymous sign-in to Firebase to enable Firestore for Deriv users
+      const initFirebaseForDeriv = async () => {
+        try {
+          const firebaseUser = await signInAnonymously();
+          const userData = {
+            name: acct || 'Deriv Trader',
+            id: acct || `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+            email: 'deriv-account',
+            uid: firebaseUser.uid, // Use Firebase UID for Firestore persistence
+            authType: 'deriv',
+            derivToken: token
+          };
+          
+          setUser(userData);
+          localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+          derivApi.authorize(token);
+        } catch (error) {
+          console.error("Failed to link Deriv to Firebase", error);
+          // Fallback to local-only if Firebase fails
+          const userData = {
+            name: acct || 'Deriv Trader',
+            id: acct || `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+            email: 'deriv-account',
+            uid: acct || token,
+            authType: 'deriv',
+            derivToken: token
+          };
+          setUser(userData);
+        }
+      };
+
+      initFirebaseForDeriv();
       
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -314,6 +344,7 @@ export default function App() {
           <div className="p-8">
             <Markets 
               initialCategory={marketCategory}
+              balance={balance}
               onSelect={(symbol) => {
                 setSelectedSymbol(symbol);
                 setActiveTab('dashboard');
@@ -333,22 +364,10 @@ export default function App() {
             <History tradeHistory={tradeHistory} />
           </div>
         );
-      case 'leaderboard':
-        return (
-          <div className="p-8 h-full overflow-y-auto">
-            <Leaderboard />
-          </div>
-        );
       case 'analytics':
         return (
           <div className="p-8 h-full overflow-y-auto">
             <Analytics tradeHistory={tradeHistory} />
-          </div>
-        );
-      case 'vibe-logs':
-        return (
-          <div className="p-8">
-            <VibeLogs />
           </div>
         );
       case 'settings':

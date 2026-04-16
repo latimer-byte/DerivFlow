@@ -3,40 +3,62 @@ import { TrendingUp, TrendingDown, Star, Search, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const allMarkets = [
-  { symbol: 'R_100', name: 'Volatility 100 Index', price: 1245.20, change: 2.4, category: 'Derived', volatility: 'High' },
-  { symbol: 'R_50', name: 'Volatility 50 Index', price: 450.15, change: -1.2, category: 'Derived', volatility: 'Medium' },
-  { symbol: 'R_25', name: 'Volatility 25 Index', price: 210.45, change: 0.8, category: 'Derived', volatility: 'Low' },
-  { symbol: 'R_10', name: 'Volatility 10 Index', price: 95.30, change: -0.5, category: 'Derived', volatility: 'Low' },
-  { symbol: 'frxEURUSD', name: 'EUR/USD', price: 1.0842, change: 0.05, category: 'Forex', volatility: 'Medium' },
-  { symbol: 'frxGBPUSD', name: 'GBP/USD', price: 1.2650, change: -0.12, category: 'Forex', volatility: 'Medium' },
-  { symbol: 'frxUSDJPY', name: 'USD/JPY', price: 151.20, change: 0.35, category: 'Forex', volatility: 'Medium' },
-  { symbol: 'cryBTCUSD', name: 'Bitcoin/USD', price: 64200.50, change: 4.8, category: 'Crypto', volatility: 'Extreme' },
-  { symbol: 'cryETHUSD', name: 'Ethereum/USD', price: 3450.20, change: 3.2, category: 'Crypto', volatility: 'High' },
-  { symbol: 'crySOLUSD', name: 'Solana/USD', price: 145.60, change: 7.4, category: 'Crypto', volatility: 'Extreme' },
-  { symbol: 'frxXAUUSD', name: 'Gold/USD', price: 2350.40, change: 0.25, category: 'Commodities', volatility: 'Medium' },
-  { symbol: 'frxXAGUSD', name: 'Silver/USD', price: 28.15, change: -0.8, category: 'Commodities', volatility: 'High' },
-  { symbol: 'frxXPDUSD', name: 'Palladium/USD', price: 1050.20, change: -1.4, category: 'Commodities', volatility: 'High' },
-  { symbol: 'frxXPTUSD', name: 'Platinum/USD', price: 980.45, change: 0.6, category: 'Commodities', volatility: 'Medium' },
-  { symbol: 'frxWTIUSD', name: 'WTI Oil', price: 85.30, change: 1.2, category: 'Commodities', volatility: 'High' },
-  { symbol: 'frxBRENT', name: 'Brent Oil', price: 89.45, change: 1.1, category: 'Commodities', volatility: 'High' },
-  { symbol: 'frxXCUUSD', name: 'Copper/USD', price: 4.25, change: 0.4, category: 'Commodities', volatility: 'Medium' },
-  { symbol: 'frxXNIUSD', name: 'Nickel/USD', price: 17500.00, change: -0.9, category: 'Commodities', volatility: 'High' },
-  { symbol: 'frxXPBUSD', name: 'Lead/USD', price: 2100.00, change: -0.2, category: 'Commodities', volatility: 'Medium' },
-  { symbol: 'frxXZNUSD', name: 'Zinc/USD', price: 2500.00, change: 0.5, category: 'Commodities', volatility: 'Medium' },
-  { symbol: 'frxXALUSD', name: 'Aluminum/USD', price: 2300.00, change: 0.3, category: 'Commodities', volatility: 'Medium' },
-  { symbol: 'frxAUDUSD', name: 'AUD/USD', price: 0.6540, change: 0.15, category: 'Forex', volatility: 'Medium' },
-  { symbol: 'frxUSDCAD', name: 'USD/CAD', price: 1.3520, change: -0.10, category: 'Forex', volatility: 'Medium' },
-  { symbol: 'STX_SP500', name: 'S&P 500', price: 5200.50, change: 1.2, category: 'Indices', volatility: 'Medium' },
-  { symbol: 'STX_NAS100', name: 'Nasdaq 100', price: 18200.30, change: 1.5, category: 'Indices', volatility: 'High' },
-  { symbol: 'STX_DJI', name: 'Dow Jones', price: 39100.20, change: 0.8, category: 'Indices', volatility: 'Medium' },
+  // Derived Indices
+  { symbol: '100', name: 'Volatility 100 Index', price: 1245.20, change: 2.4, category: 'Derived', volatility: 'High' },
+  { symbol: '75', name: 'Volatility 75 Index', price: 850.40, change: 1.8, category: 'Derived', volatility: 'High' },
+  { symbol: '50', name: 'Volatility 50 Index', price: 450.15, change: -1.2, category: 'Derived', volatility: 'Medium' },
+  { symbol: '25', name: 'Volatility 25 Index', price: 210.45, change: 0.8, category: 'Derived', volatility: 'Low' },
+  { symbol: '10', name: 'Volatility 10 Index', price: 95.30, change: -0.5, category: 'Derived', volatility: 'Low' },
+  { symbol: '100 (1s)', name: 'Volatility 100 (1s) Index', price: 1245.20, change: 2.4, category: 'Derived', volatility: 'High' },
+  { symbol: '75 (1s)', name: 'Volatility 75 (1s) Index', price: 850.40, change: 1.8, category: 'Derived', volatility: 'High' },
+  { symbol: 'Jump 10', name: 'Jump 10 Index', price: 1050.20, change: 0.4, category: 'Derived', volatility: 'High' },
+  { symbol: 'Jump 25', name: 'Jump 25 Index', price: 2100.45, change: -0.8, category: 'Derived', volatility: 'High' },
+  
+  // Forex
+  { symbol: 'EUR/USD', name: 'Euro / US Dollar', price: 1.0842, change: 0.05, category: 'Forex', volatility: 'Medium' },
+  { symbol: 'GBP/USD', name: 'British Pound / US Dollar', price: 1.2650, change: -0.12, category: 'Forex', volatility: 'Medium' },
+  { symbol: 'USD/JPY', name: 'US Dollar / Japanese Yen', price: 151.20, change: 0.35, category: 'Forex', volatility: 'Medium' },
+  { symbol: 'AUD/USD', name: 'Australian Dollar / US Dollar', price: 0.6540, change: 0.15, category: 'Forex', volatility: 'Medium' },
+  { symbol: 'USD/CAD', name: 'US Dollar / Canadian Dollar', price: 1.3520, change: -0.10, category: 'Forex', volatility: 'Medium' },
+  { symbol: 'USD/CHF', name: 'US Dollar / Swiss Franc', price: 0.9050, change: 0.20, category: 'Forex', volatility: 'Medium' },
+  { symbol: 'EUR/GBP', name: 'Euro / British Pound', price: 0.8570, change: -0.05, category: 'Forex', volatility: 'Low' },
+  
+  // Crypto
+  { symbol: 'BTC/USD', name: 'Bitcoin / US Dollar', price: 64200.50, change: 4.8, category: 'Crypto', volatility: 'Extreme' },
+  { symbol: 'ETH/USD', name: 'Ethereum / US Dollar', price: 3450.20, change: 3.2, category: 'Crypto', volatility: 'High' },
+  { symbol: 'SOL/USD', name: 'Solana / US Dollar', price: 145.60, change: 7.4, category: 'Crypto', volatility: 'Extreme' },
+  { symbol: 'XRP/USD', name: 'XRP / US Dollar', price: 0.62, change: 1.5, category: 'Crypto', volatility: 'High' },
+  
+  // Metals
+  { symbol: 'XAU/USD', name: 'Gold / US Dollar', price: 2350.40, change: 0.25, category: 'Metals', volatility: 'Medium' },
+  { symbol: 'XAG/USD', name: 'Silver / US Dollar', price: 28.15, change: -0.8, category: 'Metals', volatility: 'High' },
+  { symbol: 'XPD/USD', name: 'Palladium / US Dollar', price: 1050.20, change: -1.4, category: 'Metals', volatility: 'High' },
+  { symbol: 'XPT/USD', name: 'Platinum / US Dollar', price: 980.45, change: 0.6, category: 'Metals', volatility: 'Medium' },
+  { symbol: 'XCU/USD', name: 'Copper / US Dollar', price: 4.25, change: 0.4, category: 'Metals', volatility: 'Medium' },
+  { symbol: 'XNI/USD', name: 'Nickel / US Dollar', price: 17500.00, change: -0.9, category: 'Metals', volatility: 'High' },
+  { symbol: 'XPB/USD', name: 'Lead / US Dollar', price: 2100.00, change: -0.2, category: 'Metals', volatility: 'Medium' },
+  { symbol: 'XZN/USD', name: 'Zinc / US Dollar', price: 2500.00, change: 0.5, category: 'Metals', volatility: 'Medium' },
+  { symbol: 'XAL/USD', name: 'Aluminum / US Dollar', price: 2300.00, change: 0.3, category: 'Metals', volatility: 'Medium' },
+
+  // Commodities
+  { symbol: 'WTI', name: 'WTI Oil', price: 85.30, change: 1.2, category: 'Commodities', volatility: 'High' },
+  { symbol: 'BRENT', name: 'Brent Oil', price: 89.45, change: 1.1, category: 'Commodities', volatility: 'High' },
+  
+  // Indices
+  { symbol: 'SP500', name: 'S&P 500', price: 5200.50, change: 1.2, category: 'Indices', volatility: 'Medium' },
+  { symbol: 'NAS100', name: 'Nasdaq 100', price: 18200.30, change: 1.5, category: 'Indices', volatility: 'High' },
+  { symbol: 'DJI', name: 'Dow Jones', price: 39100.20, change: 0.8, category: 'Indices', volatility: 'Medium' },
+  { symbol: 'FTSE 100', name: 'FTSE 100', price: 7950.40, change: 0.4, category: 'Indices', volatility: 'Medium' },
+  { symbol: 'DAX 40', name: 'DAX 40', price: 18100.20, change: 0.6, category: 'Indices', volatility: 'Medium' },
 ];
 
 interface MarketsProps {
   onSelect?: (symbol: string) => void;
   initialCategory?: string;
+  balance?: number;
 }
 
-export function Markets({ onSelect, initialCategory = 'Derived' }: MarketsProps) {
+export function Markets({ onSelect, initialCategory = 'Derived', balance }: MarketsProps) {
   const [selectedCategory, setSelectedCategory] = React.useState(initialCategory);
   const [searchQuery, setSearchQuery] = React.useState('');
 
@@ -61,6 +83,13 @@ export function Markets({ onSelect, initialCategory = 'Derived' }: MarketsProps)
           <p className="text-sm md:text-base text-text-secondary">Discover and analyze over 100+ assets in real-time.</p>
         </div>
         
+        {balance !== undefined && (
+          <div className="bg-brand/10 border border-brand/20 rounded-2xl px-6 py-3 flex flex-col items-end">
+            <span className="text-[10px] font-bold text-brand uppercase tracking-widest">Available Balance</span>
+            <span className="text-xl font-black text-text-primary font-price">${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+        )}
+        
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
@@ -79,7 +108,7 @@ export function Markets({ onSelect, initialCategory = 'Derived' }: MarketsProps)
       </div>
 
       <div className="flex flex-wrap gap-2 md:gap-4">
-        {['All', 'Derived', 'Forex', 'Indices', 'Crypto', 'Commodities'].map((cat) => (
+        {['All', 'Derived', 'Forex', 'Indices', 'Crypto', 'Metals', 'Commodities'].map((cat) => (
           <button 
             key={cat}
             onClick={() => setSelectedCategory(cat)}

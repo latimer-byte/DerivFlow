@@ -47,6 +47,8 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
     onTrade?.(trade);
     
     // Simulate trade execution
+    const tradeDurationMs = parseInt(duration) * 1000;
+    
     setTimeout(() => {
       const win = Math.random() > 0.45; // 55% win rate for demo
       const result = win ? 'win' : 'loss';
@@ -61,7 +63,7 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
       
       onTradeComplete?.(trade, result, payout);
       setIsTrading(false);
-    }, 2000);
+    }, tradeDurationMs);
   };
 
   return (

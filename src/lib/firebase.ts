@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged as firebaseOnAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged as firebaseOnAuthStateChanged, User, signInAnonymously as firebaseSignInAnonymously } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, getDocFromServer, Timestamp } from 'firebase/firestore';
 
 // ... (config remains same)
@@ -129,3 +129,13 @@ export const signInWithGoogle = async () => {
 };
 
 export const logout = () => signOut(auth);
+
+export const signInAnonymously = async () => {
+  try {
+    const result = await firebaseSignInAnonymously(auth);
+    return result.user;
+  } catch (error) {
+    console.error("Error signing in anonymously", error);
+    throw error;
+  }
+};

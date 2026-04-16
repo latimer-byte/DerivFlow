@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Target, Zap, Award, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
@@ -43,6 +43,16 @@ export function Analytics({ tradeHistory }: AnalyticsProps) {
       profitFactor
     };
   }, [tradeHistory]);
+
+  const [isOptimizing, setIsOptimizing] = useState(false);
+
+  const handleOptimize = async () => {
+    setIsOptimizing(true);
+    // Simulate AI optimization process
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    setIsOptimizing(false);
+    alert("Strategy optimized! AI has updated your risk parameters for better performance.");
+  };
 
   if (!stats) {
     return (
@@ -159,8 +169,19 @@ export function Analytics({ tradeHistory }: AnalyticsProps) {
             </p>
           </div>
           <div className="mt-6 pt-6 border-t border-brand/10">
-            <button className="w-full py-3 bg-brand text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand/90 transition-all">
-              Optimize Strategy
+            <button 
+              onClick={handleOptimize}
+              disabled={isOptimizing}
+              className="w-full py-3 bg-brand text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isOptimizing ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Optimizing...
+                </>
+              ) : (
+                'Optimize Strategy'
+              )}
             </button>
           </div>
         </div>

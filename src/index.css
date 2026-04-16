@@ -26,20 +26,25 @@
 }
 
 .dark {
-  /* Dark Theme Overrides - Replit Inspired */
-  --color-background: #0E1117;
-  --color-card: #1C2128;
-  --color-border: #30363D;
+  /* Dark Theme Overrides - Replit Inspired - Softened for comfort */
+  --color-background: #0B0E14;
+  --color-card: #151921;
+  --color-border: #262C36;
   
-  --color-brand: #F26624;
-  --color-brand-hover: #D9541E;
+  --color-brand: #FF7A3D; /* Slightly lighter orange */
+  --color-brand-hover: #F26624;
   
-  --color-bullish: #22C55E;
-  --color-bearish: #EF4444;
+  --color-bullish: #4ADE80; /* Softer green */
+  --color-bearish: #F87171; /* Softer red */
   
-  --color-text-primary: #C9D1D9;
-  --color-text-secondary: #8B949E;
-  --color-text-muted: #6E7681;
+  --color-text-primary: #E2E8F0;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #64748B;
+
+  /* Chart specific colors for dark mode */
+  --color-chart-grid: rgba(148, 163, 184, 0.05);
+  --color-chart-line: #FF7A3D;
+  --color-chart-area: rgba(255, 122, 61, 0.1);
 }
 
 @layer base {

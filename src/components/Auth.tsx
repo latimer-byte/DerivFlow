@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, Mail, Lock, User, ArrowRight, Github, Chrome } from 'lucide-react';
+import { Zap, Mail, Lock, User, ArrowRight, Github, Chrome, Fingerprint } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
 import { signInWithGoogle } from '@/lib/firebase';
@@ -40,6 +40,31 @@ export function Auth({ onLogin }: AuthProps) {
     const redirectUrl = window.location.origin;
     const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&brand=deriv`;
     window.location.href = derivLoginUrl;
+  };
+
+  const handleBiometricLogin = async () => {
+    setLoading(true);
+    try {
+      // Simulate WebAuthn / Biometric flow
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const savedUser = localStorage.getItem('tradepulse_user');
+      if (savedUser) {
+        onLogin(JSON.parse(savedUser));
+      } else {
+        // Fallback for demo if no user saved
+        const demoUser = {
+          name: 'Biometric User',
+          id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+          email: 'biometric@example.com'
+        };
+        onLogin(demoUser);
+      }
+    } catch (error) {
+      console.error("Biometric login failed", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -180,9 +205,14 @@ export function Auth({ onLogin }: AuthProps) {
                 <Chrome className="w-4 h-4" />
                 Google
               </button>
-              <button className="flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl hover:bg-secondary transition-all text-xs font-bold text-text-primary">
-                <Github className="w-4 h-4" />
-                GitHub
+              <button 
+                type="button"
+                onClick={handleBiometricLogin}
+                disabled={loading}
+                className="flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl hover:bg-secondary transition-all text-xs font-bold text-text-primary disabled:opacity-50"
+              >
+                <Fingerprint className="w-4 h-4" />
+                Biometric
               </button>
             </div>
           </div>

@@ -203,11 +203,11 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
             <ComposedChart data={chartData} margin={{ top: 10, right: 60, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-brand)" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="var(--color-brand)" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="var(--color-chart-line, var(--color-brand))" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="var(--color-chart-line, var(--color-brand))" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="2 2" vertical={true} stroke="var(--color-border)" strokeOpacity={0.8} />
+              <CartesianGrid strokeDasharray="2 2" vertical={true} stroke="var(--color-chart-grid, var(--color-border))" strokeOpacity={0.8} />
               <XAxis 
                 dataKey="time" 
                 axisLine={{ stroke: 'var(--color-text-primary)', strokeWidth: 1 }} 
@@ -287,7 +287,7 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
                 <Area 
                   type="monotone" 
                   dataKey="price" 
-                  stroke="var(--color-brand)" 
+                  stroke="var(--color-chart-line, var(--color-brand))" 
                   strokeWidth={2}
                   fillOpacity={1} 
                   fill="url(#colorPrice)" 

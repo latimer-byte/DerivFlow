@@ -8,8 +8,6 @@ const menuItems = [
   { icon: Zap, label: 'Analytics', id: 'analytics' },
   { icon: Wallet, label: 'Assets', id: 'assets' },
   { icon: History, label: 'History', id: 'history' },
-  { icon: Star, label: 'Leaderboard', id: 'leaderboard' },
-  { icon: MessageSquareCode, label: 'Vibe Logs', id: 'vibe-logs' },
   { icon: Settings, label: 'Settings', id: 'settings' },
 ];
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Bell, User, ChevronDown, Menu, Globe, Shield, HelpCircle, LogOut, Settings, Wallet } from 'lucide-react';
+import { Search, Bell, User, ChevronDown, Menu, Globe, Shield, HelpCircle, LogOut, Settings, Wallet, Maximize2, Minimize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -18,6 +18,19 @@ interface HeaderProps {
 
 export function Header({ user, balance, onMenuClick, onCategorySelect, onLogout, onSettingsClick }: HeaderProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullScreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setIsFullScreen(false);
+      }
+    }
+  };
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -40,7 +53,7 @@ export function Header({ user, balance, onMenuClick, onCategorySelect, onLogout,
           </div>
           <div className="hidden sm:block h-4 w-[1px] bg-border" />
           <div className="hidden md:flex items-center gap-4 text-[10px] font-bold text-text-muted uppercase tracking-widest">
-            {['Derived', 'Forex', 'Indices', 'Crypto', 'Commodities'].map((cat) => (
+            {['Derived', 'Forex', 'Indices', 'Crypto', 'Metals', 'Commodities'].map((cat) => (
               <span 
                 key={cat}
                 onClick={() => onCategorySelect?.(cat)}
@@ -56,10 +69,35 @@ export function Header({ user, balance, onMenuClick, onCategorySelect, onLogout,
           <div className="w-1 h-1 rounded-full bg-brand animate-ping" />
           <span className="text-[9px] font-black text-brand uppercase tracking-widest">Pro Mode Active</span>
         </div>
+
+        {/* Prominent Balance and Name for Desktop */}
+        <div className="hidden lg:flex items-center gap-6 ml-auto mr-4">
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Account Balance</span>
+            <span className="text-sm font-black text-text-primary font-price tracking-tight">
+              ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="h-8 w-[1px] bg-border/50" />
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Trader</span>
+            <span className="text-sm font-bold text-text-primary tracking-tight">{user.name}</span>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4">
+        {/* Mobile Balance Display */}
+        <div className="flex lg:hidden flex-col items-end mr-2">
+          <span className="text-[8px] font-bold text-text-muted uppercase tracking-widest">Balance</span>
+          <span className="text-[11px] font-bold text-brand font-price">${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+        </div>
         <div className="flex items-center gap-1 sm:gap-2">
+          <HeaderIcon 
+            icon={isFullScreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />} 
+            onClick={toggleFullScreen}
+            className="hidden sm:flex" 
+          />
           <HeaderIcon icon={<Shield className="w-3.5 h-3.5" />} className="hidden sm:flex" />
           <HeaderIcon icon={<Globe className="w-3.5 h-3.5" />} className="hidden sm:flex" />
           <HeaderIcon icon={<HelpCircle className="w-3.5 h-3.5" />} />
@@ -165,9 +203,12 @@ function DropdownItem({ icon, label, onClick, variant = 'default' }: any) {
   );
 }
 
-function HeaderIcon({ icon, className }: { icon: React.ReactNode, className?: string }) {
+function HeaderIcon({ icon, className, onClick }: { icon: React.ReactNode, className?: string, onClick?: () => void }) {
   return (
-    <button className={cn("p-1.5 text-text-muted hover:text-text-primary hover:bg-secondary/50 rounded transition-all", className)}>
+    <button 
+      onClick={onClick}
+      className={cn("p-1.5 text-text-muted hover:text-text-primary hover:bg-secondary/50 rounded transition-all", className)}
+    >
       {icon}
     </button>
   );
