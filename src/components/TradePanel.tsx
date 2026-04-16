@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Clock, DollarSign, ChevronRight, Info, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-import { AISentiment } from './AISentiment';
-
 interface TradePanelProps {
   currentPrice: number;
   balance: number;
@@ -149,10 +147,6 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
             {isTrading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <TrendingDown className="w-5 h-5" />}
             <span className="text-xs font-bold uppercase">{isTrading ? 'Wait...' : 'Sell / Put'}</span>
           </button>
-        </div>
-
-        <div className="pt-2">
-          <AISentiment symbol={symbol} history={history} />
         </div>
       </div>
 

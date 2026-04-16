@@ -14,10 +14,35 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const googleProvider = new GoogleAuthProvider();
+let app;
+let auth: any;
+let db: any;
+const googleProvider = new GoogleAuthProvider();
+
+try {
+  if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  } else {
+    console.warn("Firebase config is not configured. Using mock mode.");
+    // Mock auth object for onAuthStateChanged
+    auth = {
+      onAuthStateChanged: (cb: any) => {
+        // Just return a no-op unsubscribe
+        return () => {};
+      },
+      currentUser: null
+    };
+    db = {};
+  }
+} catch (e) {
+  console.error("Firebase initialization failed", e);
+  auth = { onAuthStateChanged: (cb: any) => () => {}, currentUser: null };
+  db = {};
+}
+
+export { auth, db, googleProvider };
 
 // Error Handling Utility
 export enum OperationType {

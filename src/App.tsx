@@ -9,8 +9,6 @@ import { Markets } from './components/Markets';
 import { Assets } from './components/Assets';
 import { Settings } from './components/Settings';
 import { History } from './components/History';
-import { Analytics } from './components/Analytics';
-import { Leaderboard } from './components/Leaderboard';
 import { VibeLogs } from './components/VibeLogs';
 import { Auth } from './components/Auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -31,55 +29,68 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [balance, setBalance] = useState(10000.00);
   const [user, setUser] = useState<any>(() => {
-    const saved = localStorage.getItem('tradepulse_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('tradepulse_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error('Failed to parse user from localStorage', e);
+      return null;
+    }
   });
   const [activeTrades, setActiveTrades] = useState<any[]>([]);
   const [tradeHistory, setTradeHistory] = useState<any[]>(() => {
-    const saved = localStorage.getItem('tradepulse_history');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('tradepulse_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Failed to parse history from localStorage', e);
+      return [];
+    }
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [notification, setNotification] = useState<{ type: 'win' | 'loss', amount: number } | null>(null);
 
   // Firebase Auth Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        const userData = {
-          name: firebaseUser.displayName || 'User',
-          email: firebaseUser.email,
-          uid: firebaseUser.uid,
-          id: user?.id || `CR${Math.floor(Math.random() * 9000 + 1000)}`
-        };
-        setUser(userData);
-        localStorage.setItem('tradepulse_user', JSON.stringify(userData));
-        
-        // Fetch trade history from Firestore
-        const tradesRef = collection(db, 'trades');
-        const q = query(
-          tradesRef, 
-          where('userId', '==', firebaseUser.uid),
-          orderBy('timestamp', 'desc'),
-          limit(50)
-        );
-        
-        const unsubscribeTrades = onSnapshot(q, (snapshot) => {
-          const trades = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          setTradeHistory(trades);
-          localStorage.setItem('tradepulse_history', JSON.stringify(trades));
-        }, (error) => {
-          handleFirestoreError(error, OperationType.LIST, 'trades');
-        });
-        
-        return () => unsubscribeTrades();
-      }
-    });
-    return () => unsubscribe();
+    try {
+      const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        if (firebaseUser) {
+          const userData = {
+            name: firebaseUser.displayName || 'User',
+            email: firebaseUser.email,
+            uid: firebaseUser.uid,
+            id: user?.id || `CR${Math.floor(Math.random() * 9000 + 1000)}`
+          };
+          setUser(userData);
+          localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+          
+          // Fetch trade history from Firestore
+          const tradesRef = collection(db, 'trades');
+          const q = query(
+            tradesRef, 
+            where('userId', '==', firebaseUser.uid),
+            orderBy('timestamp', 'desc'),
+            limit(50)
+          );
+          
+          const unsubscribeTrades = onSnapshot(q, (snapshot) => {
+            const trades = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            setTradeHistory(trades);
+            localStorage.setItem('tradepulse_history', JSON.stringify(trades));
+          }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, 'trades');
+          });
+          
+          return () => unsubscribeTrades();
+        }
+      });
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Auth listener failed to initialize", error);
+    }
   }, []);
 
   // Theme management
@@ -251,10 +262,6 @@ export default function App() {
                   return updated;
                 });
               }
-
-              // Show notification
-              setNotification({ type: result, amount: payout });
-              setTimeout(() => setNotification(null), 3000);
             }}
           />
           {/* Mobile version of BottomPanel or just show it below */}
@@ -292,18 +299,6 @@ export default function App() {
         return (
           <div className="p-8">
             <History tradeHistory={tradeHistory} />
-          </div>
-        );
-      case 'leaderboard':
-        return (
-          <div className="p-8 h-full overflow-y-auto">
-            <Leaderboard />
-          </div>
-        );
-      case 'analytics':
-        return (
-          <div className="p-8 h-full overflow-y-auto">
-            <Analytics tradeHistory={tradeHistory} />
           </div>
         );
       case 'vibe-logs':
@@ -369,7 +364,7 @@ export default function App() {
         )}
       </AnimatePresence>
       
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <Header 
           user={user} 
           balance={balance}
@@ -396,31 +391,6 @@ export default function App() {
             </motion.div>
           </AnimatePresence>
         </div>
-
-        {/* Trade Notification */}
-        <AnimatePresence>
-          {notification && (
-            <motion.div
-              initial={{ opacity: 0, y: 50, x: '-50%' }}
-              animate={{ opacity: 1, y: 0, x: '-50%' }}
-              exit={{ opacity: 0, y: 50, x: '-50%' }}
-              className={cn(
-                "fixed bottom-24 left-1/2 z-[100] px-6 py-3 rounded-2xl border shadow-2xl flex items-center gap-3 min-w-[280px]",
-                notification.type === 'win' ? "bg-bullish border-bullish/20 text-background" : "bg-bearish border-bearish/20 text-text-primary"
-              )}
-            >
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl">
-                {notification.type === 'win' ? '🏆' : '📉'}
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Trade Settled</p>
-                <p className="text-lg font-black italic uppercase tracking-tight">
-                  {notification.type === 'win' ? `Profit: +$${(notification.amount - (notification.amount / 1.95)).toFixed(2)}` : 'Loss Guard Active'}
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </main>
     </div>
     </ErrorBoundary>
