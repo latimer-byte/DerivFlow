@@ -52,13 +52,9 @@ export function Header({ user, balance, onMenuClick, onCategorySelect, onLogout,
           </div>
         </div>
 
-        <div className="relative w-full max-w-xs group hidden xl:block ml-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted group-focus-within:text-brand transition-colors" />
-          <input 
-            type="text" 
-            placeholder="Search assets (Cmd+K)"
-            className="w-full bg-background border border-border rounded py-1.5 pl-9 pr-4 text-[11px] text-text-primary focus:outline-none focus:border-brand transition-all"
-          />
+        <div className="hidden xl:flex items-center gap-2 ml-4 px-3 py-1 bg-brand/5 border border-brand/20 rounded-full">
+          <div className="w-1 h-1 rounded-full bg-brand animate-ping" />
+          <span className="text-[9px] font-black text-brand uppercase tracking-widest">Pro Mode Active</span>
         </div>
       </div>
 

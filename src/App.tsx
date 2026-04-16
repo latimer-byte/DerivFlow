@@ -9,6 +9,8 @@ import { Markets } from './components/Markets';
 import { Assets } from './components/Assets';
 import { Settings } from './components/Settings';
 import { History } from './components/History';
+import { Analytics } from './components/Analytics';
+import { Leaderboard } from './components/Leaderboard';
 import { VibeLogs } from './components/VibeLogs';
 import { Auth } from './components/Auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -39,6 +41,7 @@ export default function App() {
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [notification, setNotification] = useState<{ type: 'win' | 'loss', amount: number } | null>(null);
 
   // Firebase Auth Listener
   useEffect(() => {
@@ -216,6 +219,7 @@ export default function App() {
             balance={balance} 
             setBalance={setBalance}
             symbol={selectedSymbol}
+            history={history}
             onTrade={(trade) => {
               setActiveTrades(prev => [trade, ...prev]);
             }}
@@ -247,6 +251,10 @@ export default function App() {
                   return updated;
                 });
               }
+
+              // Show notification
+              setNotification({ type: result, amount: payout });
+              setTimeout(() => setNotification(null), 3000);
             }}
           />
           {/* Mobile version of BottomPanel or just show it below */}
@@ -284,6 +292,18 @@ export default function App() {
         return (
           <div className="p-8">
             <History tradeHistory={tradeHistory} />
+          </div>
+        );
+      case 'leaderboard':
+        return (
+          <div className="p-8 h-full overflow-y-auto">
+            <Leaderboard />
+          </div>
+        );
+      case 'analytics':
+        return (
+          <div className="p-8 h-full overflow-y-auto">
+            <Analytics tradeHistory={tradeHistory} />
           </div>
         );
       case 'vibe-logs':
@@ -349,7 +369,7 @@ export default function App() {
         )}
       </AnimatePresence>
       
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
         <Header 
           user={user} 
           balance={balance}
@@ -376,6 +396,31 @@ export default function App() {
             </motion.div>
           </AnimatePresence>
         </div>
+
+        {/* Trade Notification */}
+        <AnimatePresence>
+          {notification && (
+            <motion.div
+              initial={{ opacity: 0, y: 50, x: '-50%' }}
+              animate={{ opacity: 1, y: 0, x: '-50%' }}
+              exit={{ opacity: 0, y: 50, x: '-50%' }}
+              className={cn(
+                "fixed bottom-24 left-1/2 z-[100] px-6 py-3 rounded-2xl border shadow-2xl flex items-center gap-3 min-w-[280px]",
+                notification.type === 'win' ? "bg-bullish border-bullish/20 text-background" : "bg-bearish border-bearish/20 text-text-primary"
+              )}
+            >
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl">
+                {notification.type === 'win' ? '🏆' : '📉'}
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Trade Settled</p>
+                <p className="text-lg font-black italic uppercase tracking-tight">
+                  {notification.type === 'win' ? `Profit: +$${(notification.amount - (notification.amount / 1.95)).toFixed(2)}` : 'Loss Guard Active'}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
     </ErrorBoundary>

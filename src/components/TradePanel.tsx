@@ -2,16 +2,19 @@ import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Clock, DollarSign, ChevronRight, Info, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { AISentiment } from './AISentiment';
+
 interface TradePanelProps {
   currentPrice: number;
   balance: number;
   setBalance: React.Dispatch<React.SetStateAction<number>>;
   symbol: string;
+  history: { epoch: number; quote: number }[];
   onTrade?: (trade: any) => void;
   onTradeComplete?: (trade: any, result: 'win' | 'loss', payout: number) => void;
 }
 
-export function TradePanel({ currentPrice, balance, setBalance, symbol, onTrade, onTradeComplete }: TradePanelProps) {
+export function TradePanel({ currentPrice, balance, setBalance, symbol, history, onTrade, onTradeComplete }: TradePanelProps) {
   const [amount, setAmount] = useState('100');
   const [duration, setDuration] = useState('60');
   const [isTrading, setIsTrading] = useState(false);
@@ -146,6 +149,10 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, onTrade,
             {isTrading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <TrendingDown className="w-5 h-5" />}
             <span className="text-xs font-bold uppercase">{isTrading ? 'Wait...' : 'Sell / Put'}</span>
           </button>
+        </div>
+
+        <div className="pt-2">
+          <AISentiment symbol={symbol} history={history} />
         </div>
       </div>
 
