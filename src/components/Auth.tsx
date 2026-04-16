@@ -60,7 +60,7 @@ export function Auth({ onLogin }: AuthProps) {
       </div>
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 1, y: 0 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md bg-card border border-border rounded-[2rem] p-8 shadow-2xl relative z-10"
       >

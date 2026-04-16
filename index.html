@@ -3,7 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <title>DerivFlow | Professional Trading Terminal</title>
+    <meta name="description" content="High-performance trading dashboard with real-time market data and AI-powered insights." />
+    <meta property="og:title" content="DerivFlow | Professional Trading Terminal" />
+    <meta property="og:description" content="Trade with precision using real-time data and AI-driven market analysis." />
+    <meta property="og:type" content="website" />
+    <style>
+      body { background-color: #0E1117; color: #C9D1D9; margin: 0; font-family: sans-serif; }
+      #root:empty::after {
+        content: "Initializing Terminal...";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-weight: bold;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        opacity: 0.5;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, Clock, DollarSign, ChevronRight, Info, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, DollarSign, ChevronRight, Info, RefreshCw, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { AISentiment } from './AISentiment';
@@ -18,7 +18,6 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
   const [amount, setAmount] = useState('100');
   const [duration, setDuration] = useState('60');
   const [isTrading, setIsTrading] = useState(false);
-  const [lossGuard, setLossGuard] = useState(true);
 
   const handleTrade = (type: 'buy' | 'sell') => {
     const val = parseFloat(amount);
@@ -42,7 +41,7 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
       duration: parseInt(duration),
       symbol: symbol,
       timestamp: Date.now(),
-      lossGuardActive: lossGuard
+      lossGuardActive: true
     };
 
     onTrade?.(trade);
@@ -53,8 +52,8 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
       const result = win ? 'win' : 'loss';
       
       // If win: original stake + 95% profit
-      // If loss: 50% of original stake returned if Loss Guard is active, else 0
-      const payout = win ? val * 1.95 : (lossGuard ? val * 0.5 : 0);
+      // If loss: 50% of original stake returned (Loss Guard standard)
+      const payout = win ? val * 1.95 : val * 0.5;
       
       if (payout > 0) {
         setBalance(prev => prev + payout);
@@ -107,29 +106,21 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
           </div>
         </div>
 
-        {/* Loss Guard Toggle */}
-        <div className="bg-background/50 border border-border rounded-xl p-3 flex items-center justify-between mb-2">
+        {/* Loss Guard Status (Permanent) */}
+        <div className="bg-brand/5 border border-brand/20 rounded-xl p-3 flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-brand/10 rounded-lg">
-              <Info className="w-4 h-4 text-brand" />
+              <Zap className="w-4 h-4 text-brand fill-brand" />
             </div>
             <div>
-              <p className="text-[11px] font-bold text-text-primary">Loss Guard</p>
-              <p className="text-[9px] text-text-muted">Return 50% on loss</p>
+              <p className="text-[11px] font-black text-brand uppercase tracking-wider">Loss Guard Active</p>
+              <p className="text-[9px] text-text-muted">50% Protection Guaranteed</p>
             </div>
           </div>
-          <button 
-            onClick={() => setLossGuard(!lossGuard)}
-            className={cn(
-              "w-10 h-5 rounded-full relative transition-colors",
-              lossGuard ? "bg-brand" : "bg-border"
-            )}
-          >
-            <div className={cn(
-              "absolute top-1 w-3 h-3 bg-white rounded-full transition-all",
-              lossGuard ? "left-6" : "left-1"
-            )} />
-          </button>
+          <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+            <span className="text-[8px] font-bold text-brand uppercase">Secured</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 pt-2">
