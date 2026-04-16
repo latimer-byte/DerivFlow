@@ -9,12 +9,10 @@ import { Markets } from './components/Markets';
 import { Assets } from './components/Assets';
 import { Settings } from './components/Settings';
 import { History } from './components/History';
-import { Analytics } from './components/Analytics';
-import { Leaderboard } from './components/Leaderboard';
 import { VibeLogs } from './components/VibeLogs';
 import { Auth } from './components/Auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, isFirebaseConfigured } from './lib/firebase';
+import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { derivApi, Tick, HistoryPoint, Candle } from './services/derivApi';
@@ -41,12 +39,9 @@ export default function App() {
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [notification, setNotification] = useState<{ type: 'win' | 'loss', amount: number } | null>(null);
 
   // Firebase Auth Listener
   useEffect(() => {
-    if (!isFirebaseConfigured) return;
-
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         const userData = {
@@ -221,7 +216,6 @@ export default function App() {
             balance={balance} 
             setBalance={setBalance}
             symbol={selectedSymbol}
-            history={history}
             onTrade={(trade) => {
               setActiveTrades(prev => [trade, ...prev]);
             }}
@@ -238,25 +232,21 @@ export default function App() {
                 userId: user?.uid || 'anonymous'
               };
               
-              // Save to Firestore if logged in and Firebase is configured
-              if (user?.uid && isFirebaseConfigured) {
+              // Save to Firestore if logged in
+              if (user?.uid) {
                 try {
                   await addDoc(collection(db, 'trades'), newHistoryItem);
                 } catch (error) {
                   handleFirestoreError(error, OperationType.CREATE, 'trades');
                 }
               } else {
-                // Fallback to local state if not logged in or Firebase not configured
+                // Fallback to local state if not logged in
                 setTradeHistory(prev => {
                   const updated = [newHistoryItem, ...prev];
                   localStorage.setItem('tradepulse_history', JSON.stringify(updated));
                   return updated;
                 });
               }
-
-              // Show notification
-              setNotification({ type: result, amount: payout });
-              setTimeout(() => setNotification(null), 3000);
             }}
           />
           {/* Mobile version of BottomPanel or just show it below */}
@@ -294,18 +284,6 @@ export default function App() {
         return (
           <div className="p-8">
             <History tradeHistory={tradeHistory} />
-          </div>
-        );
-      case 'leaderboard':
-        return (
-          <div className="p-8 h-full overflow-y-auto">
-            <Leaderboard />
-          </div>
-        );
-      case 'analytics':
-        return (
-          <div className="p-8 h-full overflow-y-auto">
-            <Analytics tradeHistory={tradeHistory} />
           </div>
         );
       case 'vibe-logs':
@@ -371,7 +349,7 @@ export default function App() {
         )}
       </AnimatePresence>
       
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <Header 
           user={user} 
           balance={balance}
@@ -398,31 +376,6 @@ export default function App() {
             </motion.div>
           </AnimatePresence>
         </div>
-
-        {/* Trade Notification */}
-        <AnimatePresence>
-          {notification && (
-            <motion.div
-              initial={{ opacity: 0, y: 50, x: '-50%' }}
-              animate={{ opacity: 1, y: 0, x: '-50%' }}
-              exit={{ opacity: 0, y: 50, x: '-50%' }}
-              className={cn(
-                "fixed bottom-24 left-1/2 z-[100] px-6 py-3 rounded-2xl border shadow-2xl flex items-center gap-3 min-w-[280px]",
-                notification.type === 'win' ? "bg-bullish border-bullish/20 text-background" : "bg-bearish border-bearish/20 text-text-primary"
-              )}
-            >
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl">
-                {notification.type === 'win' ? '🏆' : '📉'}
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Trade Settled</p>
-                <p className="text-lg font-black italic uppercase tracking-tight">
-                  {notification.type === 'win' ? `Profit: +$${(notification.amount - (notification.amount / 1.95)).toFixed(2)}` : 'Loss Guard Active'}
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </main>
     </div>
     </ErrorBoundary>

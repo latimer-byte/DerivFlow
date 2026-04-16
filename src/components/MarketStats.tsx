@@ -84,21 +84,7 @@ export function MarketStats({ symbol, currentPrice, change, changePercent }: Mar
         </div>
       </div>
 
-      <div className="hidden lg:flex items-center gap-6">
-        <div className="flex flex-col items-end">
-          <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest mb-1">Market Sentiment</div>
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-bold text-bearish uppercase">42%</span>
-            <div className="w-24 h-1.5 bg-secondary rounded-full overflow-hidden flex">
-              <div className="h-full bg-bullish" style={{ width: '58%' }} />
-              <div className="h-full bg-bearish" style={{ width: '42%' }} />
-            </div>
-            <span className="text-[10px] font-bold text-bullish uppercase">58%</span>
-          </div>
-        </div>
-
-        <div className="h-10 w-[1px] bg-border" />
-
+      <div className="hidden sm:flex items-center gap-4">
         <div className="flex flex-col items-end">
           <div className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Market Status</div>
           <div className="flex items-center gap-2 text-xs font-medium text-bullish">
