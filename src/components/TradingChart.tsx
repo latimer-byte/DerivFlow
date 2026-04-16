@@ -26,8 +26,35 @@ interface TradingChartProps {
 export function TradingChart({ data, candles, symbol }: TradingChartProps) {
   const [chartType, setChartType] = useState<'area' | 'candle'>('candle');
   const [showSMA, setShowSMA] = useState(false);
+  const [showRSI, setShowRSI] = useState(true);
 
   const chartData = useMemo(() => {
+    const calculateRSI = (prices: number[], period = 14) => {
+      if (prices.length <= period) return null;
+      
+      let gains = 0;
+      let losses = 0;
+      
+      for (let i = 1; i <= period; i++) {
+        const diff = prices[i] - prices[i - 1];
+        if (diff >= 0) gains += diff;
+        else losses -= diff;
+      }
+      
+      let avgGain = gains / period;
+      let avgLoss = losses / period;
+      
+      for (let i = period + 1; i < prices.length; i++) {
+        const diff = prices[i] - prices[i - 1];
+        avgGain = (avgGain * (period - 1) + (diff >= 0 ? diff : 0)) / period;
+        avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+      }
+      
+      if (avgLoss === 0) return 100;
+      const rs = avgGain / avgLoss;
+      return 100 - (100 / (1 + rs));
+    };
+
     if (chartType === 'candle' && candles && candles.length > 0) {
       return candles.map((c, idx) => {
         let sma = null;
@@ -35,17 +62,24 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
           const slice = candles.slice(idx - 10, idx + 1);
           sma = slice.reduce((acc, curr) => acc + curr.close, 0) / slice.length;
         }
+
+        let rsi = null;
+        if (idx >= 14) {
+          const prices = candles.slice(0, idx + 1).map(x => x.close);
+          rsi = calculateRSI(prices);
+        }
+
         return {
           time: format(new Date(c.epoch * 1000), 'HH:mm'),
           open: c.open,
           high: c.high,
           low: c.low,
           close: c.close,
-          // For Recharts Bar to work as a range
           body: [c.open, c.close],
           wick: [c.low, c.high],
           isUp: c.close >= c.open,
           sma: sma,
+          rsi: rsi,
           timestamp: c.epoch
         };
       });
@@ -60,10 +94,17 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
         sma = slice.reduce((acc, curr) => acc + curr.quote, 0) / slice.length;
       }
 
+      let rsi = null;
+      if (idx >= 14) {
+        const prices = data.slice(0, idx + 1).map(x => x.quote);
+        rsi = calculateRSI(prices);
+      }
+
       return {
         time: format(new Date(point.epoch * 1000), 'HH:mm:ss'),
         price: point.quote,
         sma: sma,
+        rsi: rsi,
         timestamp: point.epoch
       };
     });
@@ -119,9 +160,19 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-2">
-          <button 
-            onClick={() => setShowSMA(!showSMA)}
+          <div className="flex items-center gap-1 sm:gap-2">
+            <button 
+              onClick={() => setShowRSI(!showRSI)}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-1 rounded border transition-all text-[9px] sm:text-[10px] font-bold",
+                showRSI ? "bg-brand/10 border-brand/30 text-brand" : "bg-background border-border text-text-muted hover:text-text-secondary"
+              )}
+            >
+              <Activity className="w-3 h-3" />
+              <span className="hidden xs:inline">RSI</span>
+            </button>
+            <button 
+              onClick={() => setShowSMA(!showSMA)}
             className={cn(
               "flex items-center gap-1.5 px-2 py-1 rounded border transition-all text-[9px] sm:text-[10px] font-bold",
               showSMA ? "bg-brand/10 border-brand/30 text-brand" : "bg-background border-border text-text-muted hover:text-text-secondary"
@@ -140,8 +191,9 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
       </div>
 
       {/* Chart Body */}
-      <div className="flex-1 min-h-0 relative p-4">
-        {(!data || data.length === 0) ? (
+      <div className="flex-1 flex flex-col min-h-0 relative">
+        <div className={cn("flex-1 min-h-0 p-4", showRSI && "h-[70%]")}>
+          {(!data || data.length === 0) ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4">
             <div className="w-8 h-8 border-2 border-brand/20 border-t-brand rounded-full animate-spin" />
             <p className="text-[11px] text-text-muted font-mono uppercase tracking-widest">Initializing Feed...</p>
@@ -288,6 +340,45 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
               )}
             </ComposedChart>
           </ResponsiveContainer>
+        )}
+        </div>
+
+        {/* RSI Sub-chart */}
+        {showRSI && data && data.length > 0 && (
+          <div className="h-[30%] border-t border-border p-4 pt-0">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-bold text-text-muted uppercase">RSI (14)</span>
+              <div className="flex gap-2">
+                <span className="text-[9px] font-mono text-rose-500">70</span>
+                <span className="text-[9px] font-mono text-emerald-500">30</span>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData} margin={{ top: 5, right: 60, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="2 2" vertical={true} stroke="var(--color-border)" strokeOpacity={0.3} />
+                <XAxis dataKey="time" hide />
+                <YAxis 
+                  orientation="right"
+                  domain={[0, 100]}
+                  ticks={[30, 70]}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: 'var(--color-text-muted)', fontSize: 8, fontFamily: 'Roboto Mono' }}
+                  width={60}
+                />
+                <ReferenceLine y={70} stroke="var(--color-bearish)" strokeDasharray="3 3" strokeOpacity={0.3} />
+                <ReferenceLine y={30} stroke="var(--color-bullish)" strokeDasharray="3 3" strokeOpacity={0.3} />
+                <Line 
+                  type="monotone" 
+                  dataKey="rsi" 
+                  stroke="var(--color-brand)" 
+                  strokeWidth={1.5} 
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
     </div>
