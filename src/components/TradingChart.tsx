@@ -320,7 +320,7 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
                         fill={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish)'}
                         stroke={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish)'}
                         strokeWidth={1}
-                        fillOpacity={entry.isUp ? 0.3 : 1}
+                        fillOpacity={1}
                       />
                     ))}
                   </Bar>

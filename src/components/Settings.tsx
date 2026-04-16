@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Lock, LogIn, UserPlus, Moon, Sun, Bell, Shield, Globe, RefreshCw, Key, ExternalLink, CheckCircle2, Zap } from 'lucide-react';
+import { User, Mail, Lock, LogIn, UserPlus, Moon, Sun, Bell, Shield, Globe, RefreshCw, Key, ExternalLink, CheckCircle2, Zap, Monitor, Smartphone, Tablet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { derivApi } from '@/services/derivApi';
 
@@ -9,47 +9,19 @@ interface SettingsProps {
     id: string;
     email: string;
   };
-  setUser: (user: any) => void;
   onLogout: () => void;
   isDarkMode: boolean;
   setIsDarkMode: (isDark: boolean) => void;
 }
 
-export function Settings({ user, setUser, onLogout, isDarkMode, setIsDarkMode }: SettingsProps) {
-  const [isLogin, setIsLogin] = useState(true);
+export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: SettingsProps) {
   const [activeSection, setActiveSection] = useState('profile');
-  const [isProcessing, setIsProcessing] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connected' | 'error'>('idle');
   
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: ''
-  });
-
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
-  };
-
-  const handleAuth = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      
-      const newUser = {
-        name: isLogin ? (formData.name || formData.email.split('@')[0] || 'User') : formData.name,
-        email: formData.email,
-        id: 'CR' + Math.floor(100000 + Math.random() * 900000)
-      };
-      
-      localStorage.setItem('tradepulse_user', JSON.stringify(newUser));
-      setUser(newUser);
-      
-      alert(isLogin ? `Welcome back, ${newUser.name}!` : 'Account created successfully!');
-    }, 1500);
   };
 
   const handleConnectDeriv = () => {
@@ -64,12 +36,14 @@ export function Settings({ user, setUser, onLogout, isDarkMode, setIsDarkMode }:
     }, 2000);
   };
 
+  const [viewMode, setViewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Settings</h2>
-          <p className="text-sm md:text-base text-muted-foreground">Manage your account preferences and security settings.</p>
+          <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-2">Settings</h2>
+          <p className="text-sm md:text-base text-text-muted">Manage your account preferences and security settings.</p>
         </div>
       </div>
 
@@ -81,6 +55,12 @@ export function Settings({ user, setUser, onLogout, isDarkMode, setIsDarkMode }:
             label="Profile & Security" 
             active={activeSection === 'profile'} 
             onClick={() => setActiveSection('profile')}
+          />
+          <SettingsNavItem 
+            icon={Monitor} 
+            label="Interface & Display" 
+            active={activeSection === 'display'} 
+            onClick={() => setActiveSection('display')}
           />
           <SettingsNavItem 
             icon={Key} 
@@ -105,13 +85,13 @@ export function Settings({ user, setUser, onLogout, isDarkMode, setIsDarkMode }:
             <div className="flex items-center justify-between p-4 bg-secondary/30 border border-border rounded-2xl">
               <div className="flex items-center gap-3">
                 {isDarkMode ? <Moon className="w-5 h-5 text-brand" /> : <Sun className="w-5 h-5 text-brand" />}
-                <span className="text-sm font-bold text-foreground">Dark Mode</span>
+                <span className="text-sm font-bold text-text-primary">Dark Mode</span>
               </div>
               <button 
                 onClick={toggleTheme}
                 className={cn(
                   "w-12 h-6 rounded-full relative transition-all duration-300",
-                  isDarkMode ? "bg-brand" : "bg-muted"
+                  isDarkMode ? "bg-brand" : "bg-text-muted"
                 )}
               >
                 <div className={cn(
@@ -124,145 +104,102 @@ export function Settings({ user, setUser, onLogout, isDarkMode, setIsDarkMode }:
         </div>
 
         {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-8 min-h-[500px]">
           {activeSection === 'profile' && (
-            <>
-              {/* Current User Info */}
-              <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl mb-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center text-2xl font-bold text-brand">
-                      {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-foreground">{user.name}</h3>
-                      <p className="text-sm text-muted-foreground font-mono">{user.id}</p>
-                    </div>
+            <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center text-2xl font-bold text-brand">
+                    {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                   </div>
-                  <button 
-                    onClick={onLogout}
-                    className="px-4 py-2 text-xs font-bold text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all border border-rose-500/20"
-                  >
-                    Logout
-                  </button>
+                  <div>
+                    <h3 className="text-xl font-bold text-text-primary">{user.name}</h3>
+                    <p className="text-sm text-text-muted font-mono">{user.id}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={onLogout}
+                  className="px-4 py-2 text-xs font-bold text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all border border-rose-500/20"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'display' && (
+            <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl space-y-8 animate-in zoom-in-95 duration-300">
+              <div className="flex items-center gap-4 mb-2">
+                <div className="w-12 h-12 bg-brand/10 rounded-2xl flex items-center justify-center">
+                  <Monitor className="w-6 h-6 text-brand" />
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-text-primary">Interface & Display</h4>
+                  <p className="text-sm text-text-muted">Customize how the terminal looks on your device.</p>
                 </div>
               </div>
 
-              {/* Auth Section */}
-              <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl">
-                <div className="flex items-center justify-center gap-8 mb-8 border-b border-border pb-6">
-                  <button 
-                    onClick={() => setIsLogin(true)}
-                    className={cn(
-                      "text-lg font-bold transition-all relative pb-2",
-                      isLogin ? "text-brand" : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Login
-                    {isLogin && <div className="absolute bottom-0 left-0 w-full h-1 bg-brand rounded-full" />}
-                  </button>
-                  <button 
-                    onClick={() => setIsLogin(false)}
-                    className={cn(
-                      "text-lg font-bold transition-all relative pb-2",
-                      !isLogin ? "text-brand" : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Sign Up
-                    {!isLogin && <div className="absolute bottom-0 left-0 w-full h-1 bg-brand rounded-full" />}
-                  </button>
-                </div>
-
-                <form className="space-y-6 max-w-md mx-auto py-4" onSubmit={handleAuth}>
-                  {!isLogin && (
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest ml-1">Full Name</label>
-                      <div className="relative">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                        <input 
-                          type="text" 
-                          required
-                          placeholder="John Doe"
-                          value={formData.name}
-                          onChange={(e) => setFormData({...formData, name: e.target.value})}
-                          className="w-full bg-secondary/50 border border-border rounded-2xl py-4 pl-12 pr-4 text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest ml-1">Email Address</label>
-                    <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                      <input 
-                        type="email" 
-                        required
-                        placeholder="name@example.com"
-                        value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                        className="w-full bg-secondary/50 border border-border rounded-2xl py-4 pl-12 pr-4 text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest ml-1">Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                      <input 
-                        type="password" 
-                        required
-                        placeholder="••••••••"
-                        value={formData.password}
-                        onChange={(e) => setFormData({...formData, password: e.target.value})}
-                        className="w-full bg-secondary/50 border border-border rounded-2xl py-4 pl-12 pr-4 text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <button 
-                    disabled={isProcessing}
-                    className="w-full py-5 bg-brand text-white rounded-2xl font-bold text-lg shadow-xl shadow-brand/20 hover:bg-brand-hover transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50"
-                  >
-                    {isProcessing ? <RefreshCw className="w-6 h-6 animate-spin" /> : (isLogin ? <LogIn className="w-6 h-6" /> : <UserPlus className="w-6 h-6" />)}
-                    {isProcessing ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
-                  </button>
-
-                  <p className="text-center text-sm text-muted-foreground">
-                    {isLogin ? "Don't have an account?" : "Already have an account?"}
-                    <button 
-                      type="button"
-                      onClick={() => setIsLogin(!isLogin)}
-                      className="ml-2 text-brand font-bold hover:underline"
-                    >
-                      {isLogin ? 'Sign Up' : 'Login'}
-                    </button>
-                  </p>
-                </form>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <ViewModeOption 
+                  active={viewMode === 'desktop'} 
+                  onClick={() => setViewMode('desktop')}
+                  icon={Monitor}
+                  label="Desktop View"
+                  desc="Full professional layout"
+                />
+                <ViewModeOption 
+                  active={viewMode === 'tablet'} 
+                  onClick={() => setViewMode('tablet')}
+                  icon={Tablet}
+                  label="Tablet View"
+                  desc="Balanced sidebar layout"
+                />
+                <ViewModeOption 
+                  active={viewMode === 'mobile'} 
+                  onClick={() => setViewMode('mobile')}
+                  icon={Smartphone}
+                  label="Mobile View"
+                  desc="Condensed single column"
+                />
               </div>
-            </>
+
+              <div className="pt-6 border-t border-border">
+                <h5 className="text-sm font-bold text-text-primary mb-4 uppercase tracking-widest">Scaling & Density</h5>
+                <div className="space-y-4">
+                  <ToggleSetting 
+                    label="Ultra-Low Latency UI" 
+                    description="Reduce animations for faster layout transitions."
+                    active={false}
+                  />
+                  <ToggleSetting 
+                    label="High Contrast Modes" 
+                    description="Increase text visibility for accessibility."
+                    active={true}
+                  />
+                </div>
+              </div>
+            </div>
           )}
 
           {activeSection === 'api' && (
-            <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl space-y-8">
+            <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl space-y-8 animate-in zoom-in-95 duration-300">
               <div className="flex items-center gap-4 mb-2">
                 <div className="w-12 h-12 bg-brand/10 rounded-2xl flex items-center justify-center">
                   <Key className="w-6 h-6 text-brand" />
                 </div>
                 <div>
-                  <h4 className="text-xl font-bold text-foreground">Deriv API Configuration</h4>
-                  <p className="text-sm text-muted-foreground">Connect your live Deriv account to start trading.</p>
+                  <h4 className="text-xl font-bold text-text-primary">Deriv API Configuration</h4>
+                  <p className="text-sm text-text-muted">Connect your live Deriv account to start trading.</p>
                 </div>
               </div>
 
               <div className="space-y-6">
                 <div className="bg-secondary/30 border border-border rounded-2xl p-4">
-                  <h5 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+                  <h5 className="text-sm font-bold text-text-primary mb-2 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                     How to get your API Key:
                   </h5>
-                  <ol className="text-xs text-muted-foreground space-y-2 list-decimal ml-4">
+                  <ol className="text-xs text-text-muted space-y-2 list-decimal ml-4">
                     <li>Log in to your Deriv account.</li>
                     <li>Go to Settings {'>'} API Token.</li>
                     <li>Create a new token with 'Read' and 'Trade' scopes.</li>
@@ -279,15 +216,15 @@ export function Settings({ user, setUser, onLogout, isDarkMode, setIsDarkMode }:
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest ml-1">API Token</label>
+                  <label className="text-xs font-bold text-text-muted uppercase tracking-widest ml-1">API Token</label>
                   <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                     <input 
                       type="password" 
                       placeholder="Paste your Deriv API Token here..."
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
-                      className="w-full bg-secondary/50 border border-border rounded-2xl py-4 pl-12 pr-4 text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all font-mono"
+                      className="w-full bg-secondary/50 border border-border rounded-2xl py-4 pl-12 pr-4 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all font-mono"
                     />
                   </div>
                 </div>
@@ -309,7 +246,7 @@ export function Settings({ user, setUser, onLogout, isDarkMode, setIsDarkMode }:
 
           {activeSection === 'notifications' && (
             <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl space-y-6">
-              <h4 className="text-xl font-bold text-foreground mb-4">Notification Preferences</h4>
+              <h4 className="text-xl font-bold text-text-primary mb-4">Notification Preferences</h4>
               <div className="space-y-4">
                 <ToggleSetting 
                   label="Trade Executions" 
@@ -337,7 +274,7 @@ export function Settings({ user, setUser, onLogout, isDarkMode, setIsDarkMode }:
 
           {activeSection === 'privacy' && (
             <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl space-y-6">
-              <h4 className="text-xl font-bold text-foreground mb-4">Privacy & Security</h4>
+              <h4 className="text-xl font-bold text-text-primary mb-4">Privacy & Security</h4>
               <div className="space-y-4">
                 <ToggleSetting 
                   label="Two-Factor Authentication" 
@@ -361,13 +298,13 @@ export function Settings({ user, setUser, onLogout, isDarkMode, setIsDarkMode }:
             </div>
           )}
 
-          {activeSection !== 'profile' && activeSection !== 'api' && activeSection !== 'notifications' && activeSection !== 'privacy' && (
+          {activeSection !== 'profile' && activeSection !== 'api' && activeSection !== 'notifications' && activeSection !== 'privacy' && activeSection !== 'display' && (
             <div className="bg-card border border-border rounded-[2rem] p-12 flex flex-col items-center justify-center text-center space-y-4 shadow-xl">
               <div className="w-20 h-20 bg-secondary rounded-full flex items-center justify-center mb-4 border border-border">
                 <span className="text-4xl">🛠️</span>
               </div>
-              <h3 className="text-2xl font-bold text-foreground">{activeSection.charAt(0).toUpperCase() + activeSection.slice(1)} Settings</h3>
-              <p className="text-muted-foreground max-w-md">This section is being optimized by AI. Check back soon for advanced configuration options!</p>
+              <h3 className="text-2xl font-bold text-text-primary">{activeSection.charAt(0).toUpperCase() + activeSection.slice(1)} Settings</h3>
+              <p className="text-text-muted max-w-md">This section is being optimized by AI. Check back soon for advanced configuration options!</p>
             </div>
           )}
         </div>
@@ -398,14 +335,14 @@ function ToggleSetting({ label, description, active }: any) {
   return (
     <div className="flex items-center justify-between p-4 rounded-2xl hover:bg-secondary/20 transition-colors">
       <div>
-        <div className="text-sm font-bold text-foreground">{label}</div>
-        <div className="text-xs text-muted-foreground">{description}</div>
+        <div className="text-sm font-bold text-text-primary">{label}</div>
+        <div className="text-xs text-text-muted">{description}</div>
       </div>
       <button 
         onClick={() => setIsEnabled(!isEnabled)}
         className={cn(
           "w-12 h-6 rounded-full relative transition-all duration-300",
-          isEnabled ? "bg-brand" : "bg-muted"
+          isEnabled ? "bg-brand" : "bg-text-muted"
         )}
       >
         <div className={cn(
@@ -414,5 +351,25 @@ function ToggleSetting({ label, description, active }: any) {
         )} />
       </button>
     </div>
+  );
+}
+
+function ViewModeOption({ active, onClick, icon: Icon, label, desc }: any) {
+  return (
+    <button 
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all",
+        active 
+          ? "bg-brand/10 border-brand shadow-lg shadow-brand/10" 
+          : "bg-secondary/30 border-border hover:border-text-muted text-text-muted hover:text-text-primary"
+      )}
+    >
+      <Icon className={cn("w-8 h-8", active ? "text-brand" : "text-text-muted")} />
+      <div className="text-center">
+        <p className="text-xs font-bold uppercase tracking-widest">{label}</p>
+        <p className="text-[10px] opacity-60 mt-1">{desc}</p>
+      </div>
+    </button>
   );
 }

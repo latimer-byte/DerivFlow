@@ -256,7 +256,10 @@ export default function App() {
   if (!user) {
     return (
       <ErrorBoundary>
-        <Auth onLogin={setUser} />
+        <Auth onLogin={(u) => {
+          setUser(u);
+          setActiveTab('dashboard');
+        }} />
       </ErrorBoundary>
     );
   }
@@ -375,7 +378,6 @@ export default function App() {
           <div className="p-8">
             <Settings 
               user={user} 
-              setUser={setUser} 
               onLogout={handleLogout}
               isDarkMode={isDarkMode} 
               setIsDarkMode={setIsDarkMode} 

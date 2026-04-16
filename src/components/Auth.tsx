@@ -86,148 +86,201 @@ export function Auth({ onLogin }: AuthProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-brand/10 rounded-full blur-[120px]" />
-        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-rose-500/10 rounded-full blur-[120px]" />
-      </div>
-
-      <motion.div 
-        initial={{ opacity: 1, y: 0 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-card border border-border rounded-[2rem] p-8 shadow-2xl relative z-10"
-      >
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-12 h-12 bg-brand rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-brand/20">
-            <Zap className="text-background w-7 h-7 fill-background" />
-          </div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">
-            {isLogin ? 'Welcome Back' : 'Create Account'}
-          </h1>
-          <p className="text-text-muted text-sm mt-2">
-            {isLogin ? 'Enter your credentials to access your terminal' : 'Join thousands of traders on the pulse of the market'}
-          </p>
+    <div className="min-h-screen bg-background flex flex-col md:flex-row items-stretch justify-center overflow-hidden">
+      {/* Visual Side (Left) - Inspired by modern trading platforms */}
+      <div className="hidden md:flex md:w-1/2 bg-card relative items-center justify-center p-12 overflow-hidden border-r border-border">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand/20 rounded-full blur-[100px] animate-pulse" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-rose-500/10 rounded-full blur-[100px]" />
+          <div className="absolute inset-0 technical-grid opacity-10" />
+        </div>
+        
+        <div className="relative z-10 max-w-md text-center">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.8 }}
+            className="mb-8 flex justify-center"
+          >
+            <div className="w-20 h-20 bg-brand rounded-[2rem] flex items-center justify-center shadow-2xl shadow-brand/40">
+              <Zap className="text-background w-10 h-10 fill-background" />
+            </div>
+          </motion.div>
+          <motion.h2 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-4xl font-black italic uppercase tracking-tighter text-text-primary mb-4"
+          >
+            Master the Market Pulse
+          </motion.h2>
+          <motion.p 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-text-muted text-sm font-medium uppercase tracking-widest leading-relaxed"
+          >
+            Join the elite tier of traders using AI-driven insights and low-latency execution.
+          </motion.p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
+        {/* Floating Stats Mockup */}
+        <div className="absolute bottom-12 left-12 right-12 flex justify-between gap-4">
+          <div className="bg-background/40 backdrop-blur-md border border-border/50 p-4 rounded-2xl flex-1">
+            <p className="text-[10px] font-bold text-text-muted uppercase mb-1">Live Traders</p>
+            <p className="text-xl font-black text-text-primary italic">14,204+</p>
+          </div>
+          <div className="bg-background/40 backdrop-blur-md border border-border/50 p-4 rounded-2xl flex-1">
+            <p className="text-[10px] font-bold text-text-muted uppercase mb-1">24h Volume</p>
+            <p className="text-xl font-black text-brand italic">$2.4B</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Auth Side (Right) */}
+      <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12 bg-background">
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="w-full max-w-sm space-y-8"
+        >
+          {/* Mobile Logo */}
+          <div className="md:hidden flex flex-col items-center mb-12">
+            <div className="w-12 h-12 bg-brand rounded-2xl flex items-center justify-center mb-4">
+              <Zap className="text-background w-6 h-6 fill-background" />
+            </div>
+            <h1 className="text-2xl font-black italic uppercase tracking-tighter text-text-primary">TradePulse</h1>
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-text-primary">
+              {isLogin ? 'Welcome Back' : 'Get Started'}
+            </h1>
+            <p className="text-text-muted text-xs font-bold uppercase tracking-widest">
+              {isLogin ? 'Log in to your professional terminal' : 'Create your pro trading account'}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest ml-1">Full Name</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                  <input 
+                    type="text" 
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="John Doe"
+                    className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-4 text-sm text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/20 transition-all font-medium"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest ml-1">Full Name</label>
+              <label className="text-[10px] font-black text-text-muted uppercase tracking-widest ml-1">Email Address</label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                 <input 
-                  type="text" 
+                  type="email" 
                   required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full bg-background border border-border rounded-xl py-3 pl-10 pr-4 text-sm text-text-primary focus:outline-none focus:border-brand transition-all"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-4 text-sm text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/20 transition-all font-medium"
                 />
               </div>
             </div>
-          )}
 
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest ml-1">Email Address</label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-              <input 
-                type="email" 
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="w-full bg-background border border-border rounded-xl py-3 pl-10 pr-4 text-sm text-text-primary focus:outline-none focus:border-brand transition-all"
-              />
+            <div className="space-y-1">
+              <div className="flex justify-between items-center px-1">
+                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">Password</label>
+                {isLogin && <button type="button" className="text-[10px] font-black text-brand hover:underline tracking-widest uppercase">Forgot?</button>}
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input 
+                  type="password" 
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-4 text-sm text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/20 transition-all font-medium"
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-1">
-            <div className="flex justify-between items-center px-1">
-              <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Password</label>
-              {isLogin && <button type="button" className="text-[10px] font-bold text-brand hover:underline">Forgot?</button>}
-            </div>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-              <input 
-                type="password" 
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-background border border-border rounded-xl py-3 pl-10 pr-4 text-sm text-text-primary focus:outline-none focus:border-brand transition-all"
-              />
-            </div>
-          </div>
-
-          <button 
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brand text-white rounded-xl py-3 font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-hover transition-all shadow-lg shadow-brand/20 disabled:opacity-50 mt-2"
-          >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                {isLogin ? 'Sign In' : 'Create Account'}
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
-        </form>
-
-        <div className="mt-8">
-          <div className="relative flex items-center justify-center mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border"></div>
-            </div>
-            <span className="relative px-4 bg-card text-[10px] font-bold text-text-muted uppercase tracking-widest">Or continue with</span>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
             <button 
-              type="button"
-              onClick={handleDerivLogin}
+              type="submit"
               disabled={loading}
-              className="flex items-center justify-center gap-3 py-3 bg-[#ff444f] hover:bg-[#e63e46] rounded-xl transition-all text-sm font-bold text-white shadow-lg shadow-[#ff444f]/20 disabled:opacity-50"
+              className="w-full bg-brand text-white rounded-xl py-4 font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-hover transition-all shadow-xl shadow-brand/20 disabled:opacity-50 mt-6 italic"
             >
-              <Zap className="w-5 h-5 fill-white" />
-              Login with Deriv
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  {isLogin ? 'Enter Terminal' : 'Initialize Account'}
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
-            
-            <div className="grid grid-cols-2 gap-4">
+          </form>
+
+          <div className="pt-6">
+            <div className="relative flex items-center justify-center mb-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border/50"></div>
+              </div>
+              <span className="relative px-4 bg-background text-[10px] font-black text-text-muted uppercase tracking-widest">Global Auth</span>
+            </div>
+
+            <div className="space-y-3">
               <button 
                 type="button"
-                onClick={handleGoogleLogin}
+                onClick={handleDerivLogin}
                 disabled={loading}
-                className="flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl hover:bg-secondary transition-all text-xs font-bold text-text-primary disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-3 py-3.5 bg-[#ff444f] hover:bg-[#e63e46] rounded-xl transition-all text-[11px] font-black text-white uppercase tracking-widest italic"
               >
-                <Chrome className="w-4 h-4" />
-                Google
+                <Zap className="w-4 h-4 fill-white" />
+                Connect Deriv Account
               </button>
-              <button 
-                type="button"
-                onClick={handleBiometricLogin}
-                disabled={loading}
-                className="flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl hover:bg-secondary transition-all text-xs font-bold text-text-primary disabled:opacity-50"
-              >
-                <Fingerprint className="w-4 h-4" />
-                Biometric
-              </button>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  type="button"
+                  onClick={handleGoogleLogin}
+                  disabled={loading}
+                  className="flex items-center justify-center gap-2 py-3 border border-border rounded-xl hover:bg-card transition-all text-[10px] font-black text-text-primary uppercase tracking-widest disabled:opacity-50"
+                >
+                  <Chrome className="w-3.5 h-3.5" />
+                  Google
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleBiometricLogin}
+                  disabled={loading}
+                  className="flex items-center justify-center gap-2 py-3 border border-border rounded-xl hover:bg-card transition-all text-[10px] font-black text-text-primary uppercase tracking-widest disabled:opacity-50"
+                >
+                  <Fingerprint className="w-3.5 h-3.5" />
+                  Bio-ID
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <p className="text-center text-xs text-text-muted mt-8">
-          {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
-          <button 
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-brand font-bold hover:underline"
-          >
-            {isLogin ? 'Sign Up' : 'Sign In'}
-          </button>
-        </p>
-      </motion.div>
+          <p className="text-center text-[11px] font-black text-text-muted uppercase tracking-widest pt-8">
+            {isLogin ? "New to the pulse?" : "Authorized member?"}{' '}
+            <button 
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-brand hover:underline"
+            >
+              {isLogin ? 'Sign Up' : 'Sign In'}
+            </button>
+          </p>
+        </motion.div>
+      </div>
     </div>
   );
 }

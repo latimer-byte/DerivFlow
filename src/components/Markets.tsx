@@ -83,13 +83,6 @@ export function Markets({ onSelect, initialCategory = 'Derived', balance }: Mark
           <p className="text-sm md:text-base text-text-secondary">Discover and analyze over 100+ assets in real-time.</p>
         </div>
         
-        {balance !== undefined && (
-          <div className="bg-brand/10 border border-brand/20 rounded-2xl px-6 py-3 flex flex-col items-end">
-            <span className="text-[10px] font-bold text-brand uppercase tracking-widest">Available Balance</span>
-            <span className="text-xl font-black text-text-primary font-price">${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-          </div>
-        )}
-        
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />

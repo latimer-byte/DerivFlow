@@ -71,17 +71,17 @@ export function Header({ user, balance, onMenuClick, onCategorySelect, onLogout,
         </div>
 
         {/* Prominent Balance and Name for Desktop */}
-        <div className="hidden lg:flex items-center gap-6 ml-auto mr-4">
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Account Balance</span>
-            <span className="text-sm font-black text-text-primary font-price tracking-tight">
+        <div className="hidden lg:flex items-center gap-6 ml-auto mr-6 px-4 py-1.5 bg-secondary/20 border border-border/50 rounded-2xl">
+          <div className="flex flex-col items-end leading-none">
+            <span className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1 shadow-sm">Account Balance</span>
+            <span className="text-lg font-black text-text-primary font-price tracking-tight leading-none drop-shadow-sm">
               ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </span>
           </div>
-          <div className="h-8 w-[1px] bg-border/50" />
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Trader</span>
-            <span className="text-sm font-bold text-text-primary tracking-tight">{user.name}</span>
+          <div className="h-8 w-[1px] bg-border transition-colors duration-300" />
+          <div className="flex flex-col items-end leading-none">
+            <span className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Trader ID</span>
+            <span className="text-sm font-black text-text-primary uppercase italic tracking-tighter leading-none">{user.id}</span>
           </div>
         </div>
       </div>
