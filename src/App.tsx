@@ -104,6 +104,31 @@ export default function App() {
     }
   }, [isDarkMode]);
 
+  // Handle Deriv OAuth Callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token1');
+    const acct = urlParams.get('acct1');
+    
+    if (token) {
+      console.log('Deriv OAuth callback detected');
+      const userData = {
+        name: acct || 'Deriv Trader',
+        id: acct || `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+        email: 'deriv-account',
+        uid: acct || token,
+        authType: 'deriv'
+      };
+      
+      setUser(userData);
+      localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+      derivApi.authorize(token);
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   // Initialize market data
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -193,6 +218,7 @@ export default function App() {
     localStorage.removeItem('tradepulse_user');
     localStorage.removeItem('tradepulse_history');
     firebaseLogout();
+    derivApi.logout();
     setUser(null);
     setTradeHistory([]);
   };

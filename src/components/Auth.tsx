@@ -23,7 +23,8 @@ export function Auth({ onLogin }: AuthProps) {
         name: user.displayName || 'User',
         id: `CR${Math.floor(Math.random() * 9000 + 1000)}-${Math.random().toString(36).substring(2, 4).toUpperCase()}`,
         email: user.email,
-        uid: user.uid
+        uid: user.uid,
+        authType: 'firebase'
       };
       localStorage.setItem('tradepulse_user', JSON.stringify(userData));
       onLogin(userData);
@@ -32,6 +33,13 @@ export function Auth({ onLogin }: AuthProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDerivLogin = () => {
+    const appId = import.meta.env.VITE_DERIV_APP_ID || '1089';
+    const redirectUrl = window.location.origin;
+    const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&brand=deriv`;
+    window.location.href = derivLoginUrl;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -151,20 +159,32 @@ export function Auth({ onLogin }: AuthProps) {
             <span className="relative px-4 bg-card text-[10px] font-bold text-text-muted uppercase tracking-widest">Or continue with</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <button 
               type="button"
-              onClick={handleGoogleLogin}
+              onClick={handleDerivLogin}
               disabled={loading}
-              className="flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl hover:bg-secondary transition-all text-xs font-bold text-text-primary disabled:opacity-50"
+              className="flex items-center justify-center gap-3 py-3 bg-[#ff444f] hover:bg-[#e63e46] rounded-xl transition-all text-sm font-bold text-white shadow-lg shadow-[#ff444f]/20 disabled:opacity-50"
             >
-              <Chrome className="w-4 h-4" />
-              Google
+              <Zap className="w-5 h-5 fill-white" />
+              Login with Deriv
             </button>
-            <button className="flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl hover:bg-secondary transition-all text-xs font-bold text-text-primary">
-              <Github className="w-4 h-4" />
-              GitHub
-            </button>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                className="flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl hover:bg-secondary transition-all text-xs font-bold text-text-primary disabled:opacity-50"
+              >
+                <Chrome className="w-4 h-4" />
+                Google
+              </button>
+              <button className="flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl hover:bg-secondary transition-all text-xs font-bold text-text-primary">
+                <Github className="w-4 h-4" />
+                GitHub
+              </button>
+            </div>
           </div>
         </div>
 

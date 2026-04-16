@@ -3,9 +3,9 @@
  * Handles WebSocket connection to Deriv API
  */
 
-const APP_ID = '1089'; // Standard public app_id
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`;
-const DEFAULT_TOKEN = '32XhlOqFjz1VagaEisvh8';
+const DEFAULT_APP_ID = '1089';
+const getAppId = () => localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || DEFAULT_APP_ID;
+const getWsUrl = () => `wss://ws.binaryws.com/websockets/v3?app_id=${getAppId()}`;
 
 export type Tick = {
   symbol: string;
@@ -36,7 +36,7 @@ class DerivService {
   private activeSubscriptions: Map<string, string> = new Map(); // symbol -> subscriptionId
   private subscriptionCounts: Map<string, number> = new Map(); // symbol -> count
   private reqIdCounter = 0;
-  private token: string | null = DEFAULT_TOKEN;
+  private token: string | null = localStorage.getItem('deriv_token');
   private isAuthorized = false;
 
   constructor() {
@@ -44,8 +44,10 @@ class DerivService {
   }
 
   private connect() {
-    console.log(`Connecting to Deriv API (App ID: ${APP_ID})...`);
-    this.socket = new WebSocket(WS_URL);
+    const appId = getAppId();
+    const wsUrl = getWsUrl();
+    console.log(`Connecting to Deriv API (App ID: ${appId})...`);
+    this.socket = new WebSocket(wsUrl);
 
     this.socket.onopen = () => {
       this.isConnected = true;
@@ -155,8 +157,22 @@ class DerivService {
 
   public authorize(token: string) {
     this.token = token;
+    localStorage.setItem('deriv_token', token);
     this.isAuthorized = false;
     this.socket?.send(JSON.stringify({ authorize: token }));
+  }
+
+  public setAppId(appId: string) {
+    localStorage.setItem('deriv_app_id', appId);
+    this.socket?.close(); // This will trigger reconnection with new App ID
+  }
+
+  public logout() {
+    this.token = null;
+    this.isAuthorized = false;
+    localStorage.removeItem('deriv_token');
+    localStorage.removeItem('deriv_user_data');
+    this.socket?.close();
   }
 
   public on(type: string, callback: (data: any) => void) {
