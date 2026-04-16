@@ -128,7 +128,10 @@ export const signInWithGoogle = async () => {
   }
 };
 
-export const logout = () => signOut(auth);
+export const logout = () => {
+  if (auth?.isMock) return Promise.resolve();
+  return signOut(auth);
+};
 
 export const signInAnonymously = async () => {
   try {

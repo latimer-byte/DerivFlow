@@ -106,23 +106,19 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
         {/* Main Content Area */}
         <div className="lg:col-span-2 space-y-8 min-h-[500px]">
           {activeSection === 'profile' && (
-            <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center text-2xl font-bold text-brand">
-                    {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-text-primary">{user.name}</h3>
-                    <p className="text-sm text-text-muted font-mono">{user.id}</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={onLogout}
-                  className="px-4 py-2 text-xs font-bold text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all border border-rose-500/20"
-                >
-                  Logout
-                </button>
+            <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl space-y-6">
+              <h4 className="text-xl font-bold text-text-primary mb-4">Security Settings</h4>
+              <div className="space-y-4">
+                <ToggleSetting 
+                  label="Password Discovery" 
+                  description="Require password confirmation for sensitive actions."
+                  active={true}
+                />
+                <ToggleSetting 
+                  label="Login Notifications" 
+                  description="Alert me on every successful login."
+                  active={true}
+                />
               </div>
             </div>
           )}

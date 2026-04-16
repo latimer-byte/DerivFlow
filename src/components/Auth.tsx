@@ -36,9 +36,15 @@ export function Auth({ onLogin }: AuthProps) {
   };
 
   const handleDerivLogin = () => {
+    // Priority: Env variable > Known working ID > Default
     const appId = import.meta.env.VITE_DERIV_APP_ID || '1089';
+    if (!appId) {
+      console.error("Deriv App ID is missing");
+      alert("Configuration Error: Deriv App ID is missing. Please check .env or Settings.");
+      return;
+    }
     const redirectUrl = window.location.origin;
-    const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&brand=deriv`;
+    const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&brand=deriv&redirect_uri=${encodeURIComponent(redirectUrl)}`;
     window.location.href = derivLoginUrl;
   };
 
@@ -110,10 +116,18 @@ export function Auth({ onLogin }: AuthProps) {
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className="text-4xl font-black italic uppercase tracking-tighter text-text-primary mb-4"
+            className="text-4xl font-black italic uppercase tracking-tighter text-brand mb-2"
+          >
+            TradePulse
+          </motion.h2>
+          <motion.h3 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.25 }}
+            className="text-xl font-bold italic uppercase tracking-tighter text-text-primary mb-4"
           >
             Master the Market Pulse
-          </motion.h2>
+          </motion.h3>
           <motion.p 
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}

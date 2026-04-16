@@ -244,13 +244,21 @@ export default function App() {
     };
   }, [selectedSymbol]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('tradepulse_user');
-    localStorage.removeItem('tradepulse_history');
-    firebaseLogout();
-    derivApi.logout();
-    setUser(null);
-    setTradeHistory([]);
+  const handleLogout = async () => {
+    console.log('Logging out...');
+    try {
+      localStorage.removeItem('tradepulse_user');
+      localStorage.removeItem('tradepulse_history');
+      await firebaseLogout();
+      derivApi.logout();
+      setUser(null);
+      setTradeHistory([]);
+      setActiveTab('dashboard'); // Reset tab for next login
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Force clear state anyway
+      setUser(null);
+    }
   };
 
   if (!user) {

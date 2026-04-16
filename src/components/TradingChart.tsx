@@ -317,7 +317,7 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
                     {chartData.map((entry: any, index: number) => (
                       <rect
                         key={`body-${index}`}
-                        fill={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish)'}
+                        fill={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish-fill)'}
                         stroke={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish)'}
                         strokeWidth={1}
                         fillOpacity={1}

@@ -34,8 +34,9 @@
   --color-brand: #FF7A3D; /* Slightly lighter orange */
   --color-brand-hover: #F26624;
   
-  --color-bullish: #4ADE80; /* Softer green */
-  --color-bearish: #F87171; /* Softer red */
+  --color-bullish: #3B82F6; /* Blue for raise */
+  --color-bearish: #EF4444; /* Red for dip */
+  --color-bearish-fill: #FFFFFF; /* White for dip body */
   
   --color-text-primary: #E2E8F0;
   --color-text-secondary: #94A3B8;

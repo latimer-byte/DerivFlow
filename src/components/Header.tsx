@@ -80,8 +80,8 @@ export function Header({ user, balance, onMenuClick, onCategorySelect, onLogout,
           </div>
           <div className="h-8 w-[1px] bg-border transition-colors duration-300" />
           <div className="flex flex-col items-end leading-none">
-            <span className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Trader ID</span>
-            <span className="text-sm font-black text-text-primary uppercase italic tracking-tighter leading-none">{user.id}</span>
+            <span className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Client ID</span>
+            <span className="text-sm font-black text-text-primary uppercase italic tracking-tighter leading-none whitespace-nowrap">{user.id}</span>
           </div>
         </div>
       </div>
@@ -115,8 +115,8 @@ export function Header({ user, balance, onMenuClick, onCategorySelect, onLogout,
             className="flex items-center gap-2 pl-1 sm:pl-2 cursor-pointer group"
           >
             <div className="hidden xs:flex flex-col items-end">
-              <span className="text-[10px] sm:text-[11px] font-bold text-text-primary group-hover:text-brand transition-colors">{user.name}</span>
-              <span className="text-[8px] sm:text-[9px] text-text-muted font-mono uppercase tracking-widest">{user.id}</span>
+              <span className="text-[10px] sm:text-[11px] font-bold text-text-primary group-hover:text-brand transition-colors whitespace-nowrap">{user.name}</span>
+              <span className="text-[8px] sm:text-[9px] text-text-muted font-mono uppercase tracking-widest whitespace-nowrap">{user.id}</span>
             </div>
             <div className="w-6 h-6 sm:w-7 sm:h-7 rounded bg-secondary border border-border flex items-center justify-center overflow-hidden group-hover:border-brand transition-colors">
               <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-text-muted group-hover:text-brand transition-colors" />
@@ -170,7 +170,8 @@ export function Header({ user, balance, onMenuClick, onCategorySelect, onLogout,
                       icon={<LogOut className="w-4 h-4" />} 
                       label="Logout" 
                       variant="danger"
-                      onClick={() => {
+                      onClick={(e: React.MouseEvent) => {
+                        e.preventDefault();
                         onLogout?.();
                         setIsProfileOpen(false);
                       }}
