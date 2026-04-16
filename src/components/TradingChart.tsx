@@ -207,7 +207,7 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
                   <stop offset="95%" stopColor="var(--color-brand)" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="2 2" vertical={true} stroke="var(--color-border)" strokeOpacity={0.8} />
+              <CartesianGrid strokeDasharray="2 2" vertical={true} stroke="var(--color-border)" strokeOpacity={0.4} />
               <XAxis 
                 dataKey="time" 
                 axisLine={{ stroke: 'var(--color-text-primary)', strokeWidth: 1 }} 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Zap, Mail, Lock, User, ArrowRight, Github, Chrome } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle, isFirebaseConfigured } from '@/lib/firebase';
 
 interface AuthProps {
   onLogin: (user: any) => void;
@@ -14,9 +14,15 @@ export function Auth({ onLogin }: AuthProps) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleGoogleLogin = async () => {
+    if (!isFirebaseConfigured) {
+      setError("Firebase is not configured. Please add your credentials to the Secrets panel.");
+      return;
+    }
     setLoading(true);
+    setError(null);
     try {
       const user = await signInWithGoogle();
       const userData = {
@@ -27,19 +33,41 @@ export function Auth({ onLogin }: AuthProps) {
       };
       localStorage.setItem('tradepulse_user', JSON.stringify(userData));
       onLogin(userData);
-    } catch (error) {
-      console.error("Google login failed", error);
+    } catch (err: any) {
+      console.error("Google login failed", err);
+      setError(err.message || "Google login failed. Please check your connection.");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleDemoLogin = () => {
+    setLoading(true);
+    setTimeout(() => {
+      const demoUser = {
+        name: 'Demo Trader',
+        id: 'CR8888-DEMO',
+        email: 'demo@tradepulse.ai'
+      };
+      localStorage.setItem('tradepulse_user', JSON.stringify(demoUser));
+      onLogin(demoUser);
+      setLoading(false);
+    }, 800);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     
     // Simulate API call
     setTimeout(() => {
+      if (password.length < 6) {
+        setError("Password must be at least 6 characters");
+        setLoading(false);
+        return;
+      }
+
       const newUser = {
         name: isLogin ? (email.split('@')[0] || 'User') : name,
         id: `CR${Math.floor(Math.random() * 9000 + 1000)}-${Math.random().toString(36).substring(2, 4).toUpperCase()}`,
@@ -49,7 +77,7 @@ export function Auth({ onLogin }: AuthProps) {
       localStorage.setItem('tradepulse_user', JSON.stringify(newUser));
       onLogin(newUser);
       setLoading(false);
-    }, 1500);
+    }, 1200);
   };
 
   return (
@@ -75,6 +103,16 @@ export function Auth({ onLogin }: AuthProps) {
             {isLogin ? 'Enter your credentials to access your terminal' : 'Join thousands of traders on the pulse of the market'}
           </p>
         </div>
+
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mb-6 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-500 text-[11px] font-bold text-center"
+          >
+            {error}
+          </motion.div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
@@ -161,9 +199,14 @@ export function Auth({ onLogin }: AuthProps) {
               <Chrome className="w-4 h-4" />
               Google
             </button>
-            <button className="flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl hover:bg-secondary transition-all text-xs font-bold text-text-primary">
-              <Github className="w-4 h-4" />
-              GitHub
+            <button 
+              type="button"
+              onClick={handleDemoLogin}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl hover:bg-secondary transition-all text-xs font-bold text-text-primary disabled:opacity-50"
+            >
+              <Zap className="w-4 h-4 text-brand" />
+              Demo
             </button>
           </div>
         </div>

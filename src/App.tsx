@@ -14,7 +14,7 @@ import { Leaderboard } from './components/Leaderboard';
 import { VibeLogs } from './components/VibeLogs';
 import { Auth } from './components/Auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, isFirebaseConfigured } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { derivApi, Tick, HistoryPoint, Candle } from './services/derivApi';
@@ -45,6 +45,8 @@ export default function App() {
 
   // Firebase Auth Listener
   useEffect(() => {
+    if (!isFirebaseConfigured) return;
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         const userData = {
@@ -236,15 +238,15 @@ export default function App() {
                 userId: user?.uid || 'anonymous'
               };
               
-              // Save to Firestore if logged in
-              if (user?.uid) {
+              // Save to Firestore if logged in and Firebase is configured
+              if (user?.uid && isFirebaseConfigured) {
                 try {
                   await addDoc(collection(db, 'trades'), newHistoryItem);
                 } catch (error) {
                   handleFirestoreError(error, OperationType.CREATE, 'trades');
                 }
               } else {
-                // Fallback to local state if not logged in
+                // Fallback to local state if not logged in or Firebase not configured
                 setTradeHistory(prev => {
                   const updated = [newHistoryItem, ...prev];
                   localStorage.setItem('tradepulse_history', JSON.stringify(updated));
