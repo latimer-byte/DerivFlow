@@ -17,7 +17,16 @@ interface TradePanelProps {
 export function TradePanel({ currentPrice, balance, setBalance, symbol, history, onTrade, onTradeComplete }: TradePanelProps) {
   const [amount, setAmount] = useState('100');
   const [duration, setDuration] = useState('60');
-  const [isTrading, setIsTrading] = useState(false);
+
+  const getDurationLabel = (s: string) => {
+    const val = parseInt(s);
+    if (val < 60) return `${val}s`;
+    if (val < 3600) return `${Math.floor(val / 60)}m`;
+    if (val < 86400) return `${Math.floor(val / 3600)}h`;
+    if (val < 604800) return `${Math.floor(val / 86400)}d`;
+    if (val < 2592000) return `${Math.floor(val / 604800)}w`;
+    return '1mo';
+  };
 
   const handleTrade = (type: 'buy' | 'sell') => {
     const val = parseFloat(amount);
@@ -29,7 +38,6 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
 
     // Deduct stake immediately
     setBalance(balance - val);
-    setIsTrading(true);
     
     // Create trade object
     const tradeId = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -41,29 +49,12 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
       duration: parseInt(duration),
       symbol: symbol,
       timestamp: Date.now(),
+      status: 'OPEN',
       lossGuardActive: true
     };
 
+    // Emit trade immediately for instant recording
     onTrade?.(trade);
-    
-    // Simulate trade execution
-    const tradeDurationMs = parseInt(duration) * 1000;
-    
-    setTimeout(() => {
-      const win = Math.random() > 0.45; // 55% win rate for demo
-      const result = win ? 'win' : 'loss';
-      
-      // If win: original stake + 95% profit
-      // If loss: 50% of original stake returned (Loss Guard standard)
-      const payout = win ? val * 1.95 : val * 0.5;
-      
-      if (payout > 0) {
-        setBalance(prev => prev + payout);
-      }
-      
-      onTradeComplete?.(trade, result, payout);
-      setIsTrading(false);
-    }, tradeDurationMs);
   };
 
   return (
@@ -91,17 +82,17 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
 
           <div className="space-y-1">
             <label className="text-[10px] font-medium text-text-muted uppercase ml-1">Duration</label>
-            <div className="grid grid-cols-4 gap-1">
-              {['15', '30', '60', '300'].map((d) => (
+            <div className="grid grid-cols-3 gap-1">
+              {['60', '300', '3600', '86400', '604800', '2592000'].map((d) => (
                 <button 
                   key={d}
                   onClick={() => setDuration(d)}
                   className={cn(
-                    "py-1.5 text-[10px] font-bold rounded border transition-all",
+                    "py-1.5 text-[10px] font-bold rounded border transition-all whitespace-nowrap",
                     duration === d ? "bg-brand/10 border-brand text-brand" : "bg-background border-border text-text-muted hover:border-text-muted"
                   )}
                 >
-                  {d === '300' ? '5m' : `${d}s`}
+                  {getDurationLabel(d)}
                 </button>
               ))}
             </div>
@@ -128,19 +119,17 @@ export function TradePanel({ currentPrice, balance, setBalance, symbol, history,
         <div className="grid grid-cols-2 gap-3 pt-2">
           <button 
             onClick={() => handleTrade('buy')}
-            disabled={isTrading}
-            className="flex flex-col items-center justify-center gap-1 py-3 bg-bullish hover:bg-bullish/90 text-background rounded-lg transition-all active:scale-[0.98] disabled:opacity-50"
+            className="flex flex-col items-center justify-center gap-1 py-3 bg-bullish hover:bg-bullish/90 text-background rounded-lg transition-all active:scale-[0.98]"
           >
-            {isTrading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-5 h-5" />}
-            <span className="text-xs font-bold uppercase">{isTrading ? 'Wait...' : 'Buy / Call'}</span>
+            <TrendingUp className="w-5 h-5" />
+            <span className="text-xs font-bold uppercase">Buy / Call</span>
           </button>
           <button 
             onClick={() => handleTrade('sell')}
-            disabled={isTrading}
-            className="flex flex-col items-center justify-center gap-1 py-3 bg-bearish hover:bg-bearish/90 text-text-primary rounded-lg transition-all active:scale-[0.98] disabled:opacity-50"
+            className="flex flex-col items-center justify-center gap-1 py-3 bg-bearish hover:bg-bearish/90 text-text-primary rounded-lg transition-all active:scale-[0.98]"
           >
-            {isTrading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <TrendingDown className="w-5 h-5" />}
-            <span className="text-xs font-bold uppercase">{isTrading ? 'Wait...' : 'Sell / Put'}</span>
+            <TrendingDown className="w-5 h-5" />
+            <span className="text-xs font-bold uppercase">Sell / Put</span>
           </button>
         </div>
 

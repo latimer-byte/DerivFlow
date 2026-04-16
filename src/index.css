@@ -13,8 +13,8 @@
   --color-brand: #F26624;
   --color-brand-hover: #D9541E;
   
-  --color-bullish: #00C853;
-  --color-bearish: #FF3B30;
+  --color-bullish: #26A69A;
+  --color-bearish: #EF5350;
   
   --color-text-primary: #1C2333;
   --color-text-secondary: #475569;
@@ -34,9 +34,9 @@
   --color-brand: #FF7A3D; /* Slightly lighter orange */
   --color-brand-hover: #F26624;
   
-  --color-bullish: #3B82F6; /* Blue for raise */
-  --color-bearish: #EF4444; /* Red for dip */
-  --color-bearish-fill: #FFFFFF; /* White for dip body */
+  --color-bullish: #26A69A; /* MT5 Green */
+  --color-bearish: #EF5350; /* MT5 Red */
+  --color-bearish-fill: #EF5350; /* Solid Red by default */
   
   --color-text-primary: #E2E8F0;
   --color-text-secondary: #94A3B8;

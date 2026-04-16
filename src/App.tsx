@@ -37,15 +37,8 @@ export default function App() {
     }
   });
   const [activeTrades, setActiveTrades] = useState<any[]>([]);
-  const [tradeHistory, setTradeHistory] = useState<any[]>(() => {
-    try {
-      const saved = localStorage.getItem('tradepulse_history');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to parse history from localStorage', e);
-      return [];
-    }
-  });
+  const [tradeHistory, setTradeHistory] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [notification, setNotification] = useState<{ type: 'win' | 'loss', amount: number } | null>(null);
@@ -71,36 +64,109 @@ export default function App() {
     }
   }, []);
 
-  // Trade History Listener
+  // Trade Lifecycle Manager
+  useEffect(() => {
+    if (!user?.uid || activeTrades.length === 0) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const finishedTrades = activeTrades.filter(t => (t.timestamp + t.duration * 1000) <= now);
+
+      if (finishedTrades.length > 0) {
+        finishedTrades.forEach(async (trade) => {
+          // Calculate result
+          const win = Math.random() > 0.45;
+          const result = win ? 'win' : 'loss';
+          const payout = win ? trade.amount * 1.95 : trade.amount * 0.5;
+
+          if (payout > 0) {
+            setBalance(prev => prev + payout);
+          }
+
+          const completedTrade = {
+            ...trade,
+            status: 'CLOSED',
+            result,
+            payout,
+            exit: currentTick?.quote || trade.entryPrice,
+            profit: payout - trade.amount,
+            closedAt: now
+          };
+
+          // Update activeTrades state
+          setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
+
+          // Save to Firestore
+          try {
+            await setDoc(doc(db, 'trades', trade.id), completedTrade);
+            // Show notification
+            setNotification({ type: result, amount: payout });
+            setTimeout(() => setNotification(null), 3000);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.UPDATE, 'trades');
+          }
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [user?.uid, activeTrades, currentTick?.quote]);
+
+  // Firebase Trade Sync
   useEffect(() => {
     if (!user?.uid) return;
 
-    console.log('Setting up history listener for:', user.uid);
     const tradesRef = collection(db, 'trades');
-    // Removed orderBy to avoid index requirements, sorting client-side instead
     const q = query(
       tradesRef, 
       where('userId', '==', user.uid),
-      limit(100)
+      limit(200)
     );
     
     const unsubscribeTrades = onSnapshot(q, (snapshot) => {
-      const trades = snapshot.docs.map(doc => ({
+      const allTrades = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as any[];
       
-      // Sort client-side by timestamp descending
-      const sortedTrades = trades.sort((a, b) => b.timestamp - a.timestamp);
+      const active = allTrades.filter(t => t.status === 'OPEN');
+      const closed = allTrades.filter(t => t.status === 'CLOSED')
+        .sort((a, b) => (b.closedAt || b.timestamp) - (a.closedAt || a.timestamp));
       
-      setTradeHistory(sortedTrades);
-      localStorage.setItem('tradepulse_history', JSON.stringify(sortedTrades));
+      setActiveTrades(active);
+      setTradeHistory(closed);
+      localStorage.setItem('tradepulse_history', JSON.stringify(closed));
     }, (error) => {
-      console.error("History listener error:", error);
-      // Only log, don't throw to avoid crashing the app
+      console.error("Trades listener error:", error);
     });
     
     return () => unsubscribeTrades();
+  }, [user?.uid]);
+
+  // Firebase Transaction Sync
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const txRef = collection(db, 'transactions');
+    const q = query(
+      txRef, 
+      where('userId', '==', user.uid),
+      limit(200)
+    );
+    
+    const unsubscribeTx = onSnapshot(q, (snapshot) => {
+      const txs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[];
+      
+      const sortedTxs = txs.sort((a, b) => b.timestamp - a.timestamp);
+      setTransactions(sortedTxs);
+    }, (error) => {
+      console.error("Transactions listener error:", error);
+    });
+    
+    return () => unsubscribeTx();
   }, [user?.uid]);
 
   // Theme management
@@ -300,41 +366,19 @@ export default function App() {
             setBalance={setBalance}
             symbol={selectedSymbol}
             history={history}
-            onTrade={(trade) => {
-              setActiveTrades(prev => [trade, ...prev]);
-            }}
-            onTradeComplete={async (trade, result, payout) => {
-              setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
-              const newHistoryItem = {
-                ...trade,
-                entry: trade.entryPrice, // Map entryPrice to entry for History component
-                result,
-                payout,
-                exit: currentTick?.quote || trade.entryPrice,
-                profit: payout - trade.amount,
-                timestamp: Date.now(),
-                userId: user?.uid || 'anonymous'
-              };
+            onTrade={async (trade) => {
+              const newTrade = { ...trade, userId: user.uid };
+              setActiveTrades(prev => [newTrade, ...prev]);
               
-              // Save to Firestore if logged in
-              if (user?.uid) {
-                try {
-                  await addDoc(collection(db, 'trades'), newHistoryItem);
-                } catch (error) {
-                  handleFirestoreError(error, OperationType.CREATE, 'trades');
-                }
-              } else {
-                // Fallback to local state if not logged in
-                setTradeHistory(prev => {
-                  const updated = [newHistoryItem, ...prev];
-                  localStorage.setItem('tradepulse_history', JSON.stringify(updated));
-                  return updated;
-                });
+              // Persist as OPEN trade immediately
+              try {
+                await setDoc(doc(db, 'trades', newTrade.id), newTrade);
+              } catch (error) {
+                handleFirestoreError(error, OperationType.CREATE, 'trades');
               }
-
-              // Show notification
-              setNotification({ type: result, amount: payout });
-              setTimeout(() => setNotification(null), 3000);
+            }}
+            onTradeComplete={() => {
+              // Now handled by background lifecycle manager
             }}
           />
           {/* Mobile version of BottomPanel or just show it below */}
@@ -366,13 +410,18 @@ export default function App() {
       case 'assets':
         return (
           <div className="p-8">
-            <Assets balance={balance} setBalance={setBalance} />
+            <Assets 
+              user={user}
+              balance={balance} 
+              setBalance={setBalance} 
+              transactions={transactions}
+            />
           </div>
         );
       case 'history':
         return (
           <div className="p-8">
-            <History tradeHistory={tradeHistory} />
+            <History tradeHistory={tradeHistory} transactionHistory={transactions} />
           </div>
         );
       case 'analytics':

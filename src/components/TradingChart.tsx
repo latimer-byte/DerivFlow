@@ -4,6 +4,7 @@ import {
   Area, 
   BarChart,
   Bar,
+  Cell,
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -302,7 +303,7 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
                     barSize={1}
                   >
                     {chartData.map((entry: any, index: number) => (
-                      <rect
+                      <Cell 
                         key={`wick-${index}`}
                         fill={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish)'}
                       />
@@ -312,15 +313,14 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
                   <Bar 
                     dataKey="body" 
                     isAnimationActive={false}
-                    barSize={10}
+                    barSize={6}
                   >
                     {chartData.map((entry: any, index: number) => (
-                      <rect
+                      <Cell 
                         key={`body-${index}`}
                         fill={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish-fill)'}
                         stroke={entry.isUp ? 'var(--color-bullish)' : 'var(--color-bearish)'}
                         strokeWidth={1}
-                        fillOpacity={1}
                       />
                     ))}
                   </Bar>

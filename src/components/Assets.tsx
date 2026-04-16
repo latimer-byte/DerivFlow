@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
-import { Wallet, ArrowUpRight, ArrowDownLeft, CreditCard, Landmark, Coins, History, ShieldCheck } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, CreditCard, Landmark, Coins, History, ShieldCheck, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { db, handleFirestoreError, OperationType } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AssetsProps {
+  user: any;
   balance: number;
   setBalance: (balance: number) => void;
+  transactions: any[];
 }
 
-export function Assets({ balance, setBalance }: AssetsProps) {
+export function Assets({ user, balance, setBalance, transactions }: AssetsProps) {
   const [activeAction, setActiveAction] = useState<'deposit' | 'withdraw' | 'overview'>('overview');
   const [amount, setAmount] = useState('');
-  const [transactions, setTransactions] = useState([
-    { type: 'deposit', label: 'Deposit via Visa', amount: '+$500.00', date: '2 hours ago' },
-    { type: 'withdraw', label: 'Withdraw to Bank', amount: '-$200.00', date: 'Yesterday' },
-    { type: 'deposit', label: 'Deposit via Crypto', amount: '+$1,200.00', date: '3 days ago' },
-  ]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const val = parseFloat(amount);
     if (isNaN(val) || val <= 0) return;
 
@@ -25,19 +25,32 @@ export function Assets({ balance, setBalance }: AssetsProps) {
       return;
     }
 
-    const newBalance = activeAction === 'deposit' ? balance + val : balance - val;
-    setBalance(newBalance);
-    
-    const newTx = {
-      type: activeAction,
-      label: `${activeAction.charAt(0).toUpperCase() + activeAction.slice(1)} via Card`,
-      amount: `${activeAction === 'deposit' ? '+' : '-'}$${val.toFixed(2)}`,
-      date: 'Just now'
-    };
-    
-    setTransactions([newTx, ...transactions]);
-    setAmount('');
-    setActiveAction('overview');
+    setIsProcessing(true);
+
+    try {
+      const newBalance = activeAction === 'deposit' ? balance + val : balance - val;
+      
+      const txData = {
+        userId: user.uid,
+        type: activeAction,
+        label: `${activeAction.charAt(0).toUpperCase() + activeAction.slice(1)} via ${activeAction === 'deposit' ? 'Direct Payment' : 'Bank Transfer'}`,
+        amount: val,
+        displayAmount: `${activeAction === 'deposit' ? '+' : '-'}$${val.toFixed(2)}`,
+        status: 'COMPLETED',
+        timestamp: Date.now(),
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'transactions'), txData);
+      
+      setBalance(newBalance);
+      setAmount('');
+      setActiveAction('overview');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'transactions');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -116,9 +129,19 @@ export function Assets({ balance, setBalance }: AssetsProps) {
               Recent Transactions
             </h4>
             <div className="space-y-4">
-              {transactions.map((tx, i) => (
-                <TransactionItem key={i} {...tx} />
-              ))}
+              {transactions.length === 0 ? (
+                <div className="text-center py-8 text-text-muted italic text-xs">No transactions yet.</div>
+              ) : (
+                transactions.slice(0, 5).map((tx, i) => (
+                  <TransactionItem 
+                    key={tx.id || i} 
+                    type={tx.type}
+                    label={tx.label}
+                    amount={tx.displayAmount}
+                    date={tx.timestamp ? new Date(tx.timestamp).toLocaleString() : 'Just now'} 
+                  />
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -160,9 +183,11 @@ export function Assets({ balance, setBalance }: AssetsProps) {
 
             <button 
               onClick={handleConfirm}
-              className="w-full py-4 md:py-5 bg-brand text-white rounded-xl md:rounded-2xl font-bold text-base md:text-lg shadow-xl shadow-brand/20 hover:bg-brand-hover transition-all active:scale-[0.98]"
+              disabled={isProcessing || !amount}
+              className="w-full py-4 md:py-5 bg-brand text-white rounded-xl md:rounded-2xl font-bold text-base md:text-lg shadow-xl shadow-brand/20 hover:bg-brand-hover transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3"
             >
-              Confirm {activeAction}
+              {isProcessing && <RefreshCw className="w-5 h-5 animate-spin" />}
+              {isProcessing ? 'Processing...' : `Confirm ${activeAction}`}
             </button>
           </div>
         </div>
