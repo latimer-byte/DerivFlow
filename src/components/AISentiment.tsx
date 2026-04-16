@@ -23,7 +23,12 @@ export function AISentiment({ symbol, history }: AISentimentProps) {
     
     setIsLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey || apiKey === 'undefined' || apiKey === 'MY_GEMINI_API_KEY') {
+        throw new Error('Gemini API key is not configured');
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
       
       // Prepare data for the model
       const prices = history.slice(-50).map(h => h.quote).join(', ');

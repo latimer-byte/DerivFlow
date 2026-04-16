@@ -1,13 +1,21 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+let aiInstance: any = null;
+
+function getAI() {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+      throw new Error('GEMINI_API_KEY is not configured');
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+}
 
 export async function getMarketInsights(symbol: string, currentPrice: number, history: any[]) {
-  if (!process.env.GEMINI_API_KEY) {
-    return "AI insights are currently unavailable. Please configure your GEMINI_API_KEY.";
-  }
-
   try {
+    const ai = getAI();
     const prompt = `
       You are a professional market analyst. 
       Analyze the current market data for ${symbol}.
@@ -19,13 +27,13 @@ export async function getMarketInsights(symbol: string, currentPrice: number, hi
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash", // Using a fast model for real-time feel
+      model: "gemini-3-flash-preview",
       contents: prompt,
     });
 
     return response.text || "Unable to generate insights at this time.";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "The AI is currently contemplating the market. Try again in a moment.";
+    return "AI insights are currently unavailable. Please configure your GEMINI_API_KEY.";
   }
 }

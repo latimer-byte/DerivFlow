@@ -19,7 +19,7 @@ let db: any;
 let isFirebaseConfigured = false;
 
 try {
-  if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+  if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY" && firebaseConfig.apiKey !== "") {
     // Initialize Firebase
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
@@ -30,9 +30,15 @@ try {
   }
 } catch (error) {
   console.warn("Firebase initialization skipped or failed. Using mock/local mode.", error);
-  // Provide mock objects to prevent the app from crashing
-  auth = { onAuthStateChanged: () => () => {} };
-  db = {};
+  // Provide safer mock objects to prevent the app from crashing
+  auth = { 
+    onAuthStateChanged: () => () => {},
+    currentUser: null,
+    signOut: async () => {} 
+  };
+  db = {
+    type: 'firestore-mock'
+  };
   isFirebaseConfigured = false;
 }
 
@@ -67,12 +73,12 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData?.map((provider: any) => ({
         providerId: provider.providerId,
         displayName: provider.displayName,
         email: provider.email,
@@ -108,4 +114,8 @@ export const signInWithGoogle = async () => {
   }
 };
 
-export const logout = () => signOut(auth);
+export const logout = async () => {
+  if (isFirebaseConfigured && auth && typeof auth.signOut === 'function') {
+    return signOut(auth);
+  }
+};
