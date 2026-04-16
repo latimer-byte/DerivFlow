@@ -1,9 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged as firebaseOnAuthStateChanged, User } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, getDocFromServer, Timestamp } from 'firebase/firestore';
 
-// This configuration will be populated automatically if set_up_firebase succeeds.
-// If you are setting up manually, replace these values with your Firebase project config.
+// ... (config remains same)
 const firebaseConfig = {
   apiKey: "YOUR_API_KEY",
   authDomain: "YOUR_AUTH_DOMAIN",
@@ -14,31 +13,47 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app;
+let app: any;
 let auth: any;
 let db: any;
 const googleProvider = new GoogleAuthProvider();
 
+// Custom onAuthStateChanged that handles mock mode
+export const onAuthStateChanged = (authInstance: any, callback: (user: User | null) => void) => {
+  if (authInstance && typeof authInstance.onAuthStateChanged === 'function' && authInstance.isMock) {
+    return authInstance.onAuthStateChanged(callback);
+  }
+  return firebaseOnAuthStateChanged(authInstance, callback);
+};
+
 try {
-  if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+  if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
   } else {
     console.warn("Firebase config is not configured. Using mock mode.");
-    // Mock auth object for onAuthStateChanged
     auth = {
+      isMock: true,
       onAuthStateChanged: (cb: any) => {
-        // Just return a no-op unsubscribe
+        // In mock mode, we don't have a real firebase user
+        // But we can check localStorage if we want to simulate persistence
         return () => {};
       },
       currentUser: null
     };
-    db = {};
+    db = {
+      collection: () => ({ doc: () => ({}) }),
+      doc: () => ({})
+    };
   }
 } catch (e) {
   console.error("Firebase initialization failed", e);
-  auth = { onAuthStateChanged: (cb: any) => () => {}, currentUser: null };
+  auth = { 
+    isMock: true,
+    onAuthStateChanged: (cb: any) => () => {}, 
+    currentUser: null 
+  };
   db = {};
 }
 
