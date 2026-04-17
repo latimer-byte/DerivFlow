@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { MarketStats } from './components/MarketStats';
@@ -45,6 +45,15 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [timeframe, setTimeframe] = useState('1M');
   const [notification, setNotification] = useState<{ type: 'win' | 'loss', amount: number } | null>(null);
+
+  const dashboardStats = useMemo(() => {
+    const netProfit = tradeHistory.reduce((acc, t) => acc + (t.profit || 0), 0);
+    const netLoss = tradeHistory.filter(t => t.result === 'loss').reduce((acc, t) => acc + (t.amount || 0), 0);
+    const totalDeposits = transactions.filter(tx => tx.type === 'deposit').reduce((acc, tx) => acc + (tx.amount || 0), 0);
+    const totalWithdrawals = transactions.filter(tx => tx.type === 'withdrawal').reduce((acc, tx) => acc + (tx.amount || 0), 0);
+    
+    return { netProfit, netLoss, totalDeposits, totalWithdrawals };
+  }, [tradeHistory, transactions]);
 
   // Sync state with local storage AND cloud when user UID is available
   useEffect(() => {
@@ -430,6 +439,7 @@ export default function App() {
         currentPrice={currentTick?.quote || history[history.length - 1]?.quote || 0}
         change={2.45}
         changePercent={0.15}
+        stats={dashboardStats}
       />
       
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">

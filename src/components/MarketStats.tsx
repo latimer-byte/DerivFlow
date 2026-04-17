@@ -7,6 +7,12 @@ interface MarketStatsProps {
   currentPrice: number;
   change: number;
   changePercent: number;
+  stats?: {
+    netProfit: number;
+    netLoss: number;
+    totalDeposits: number;
+    totalWithdrawals: number;
+  };
 }
 
 const getMarketName = (symbol: string) => {
@@ -29,7 +35,7 @@ const getMarketName = (symbol: string) => {
   return names[symbol] || symbol;
 };
 
-export function MarketStats({ symbol, currentPrice, change, changePercent }: MarketStatsProps) {
+export function MarketStats({ symbol, currentPrice, change, changePercent, stats }: MarketStatsProps) {
   const [tickDirection, setTickDirection] = useState<'up' | 'down' | null>(null);
   const prevPrice = useRef(currentPrice);
 
@@ -80,6 +86,30 @@ export function MarketStats({ symbol, currentPrice, change, changePercent }: Mar
             label="24h Low" 
             value={`$${(currentPrice * 0.98).toFixed(2)}`} 
             className="hidden xs:flex"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-4 sm:gap-6 border-l border-border pl-4 sm:pl-6 ml-0 sm:ml-2">
+          <StatItem 
+            label="Net Profit" 
+            value={stats ? `$${stats.netProfit.toFixed(2)}` : '$0.00'} 
+            className="text-bullish"
+            trend="up"
+          />
+          <StatItem 
+            label="Net Loss" 
+            value={stats ? `$${stats.netLoss.toFixed(2)}` : '$0.00'} 
+            className="text-bearish"
+          />
+          <StatItem 
+            label="Deposited" 
+            value={stats ? `$${stats.totalDeposits.toLocaleString()}` : '$0.00'} 
+            className="hidden xl:flex"
+          />
+          <StatItem 
+            label="Withdrawn" 
+            value={stats ? `$${stats.totalWithdrawals.toLocaleString()}` : '$0.00'} 
+            className="hidden xl:flex"
           />
         </div>
       </div>

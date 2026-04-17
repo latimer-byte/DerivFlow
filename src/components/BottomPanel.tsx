@@ -23,7 +23,7 @@ export function BottomPanel({ activeTrades, tradeHistory, user, currentPrice }: 
     
     const deposits = 5000; // Mock data
     const withdrawals = 1200; // Mock data
-    const totalWins = tradeHistory.filter(t => t.result === 'win').reduce((acc, t) => acc + (t.payout || 0), 0);
+    const totalWins = tradeHistory.filter(t => t.result === 'win').reduce((acc, t) => acc + (t.profit || (t.payout - t.amount) || 0), 0);
     const totalLosses = tradeHistory.filter(t => t.result === 'loss').reduce((acc, t) => acc + (t.amount || 0), 0);
 
     return {
@@ -34,7 +34,7 @@ export function BottomPanel({ activeTrades, tradeHistory, user, currentPrice }: 
       withdrawals,
       totalWins,
       totalLosses,
-      netProfit: totalWins - totalLosses
+      netProfit: tradeHistory.reduce((acc, t) => acc + (t.profit || 0), 0)
     };
   }, [tradeHistory]);
 
@@ -194,14 +194,15 @@ export function BottomPanel({ activeTrades, tradeHistory, user, currentPrice }: 
                       <th className="px-4 py-2 font-medium">Time</th>
                       <th className="px-4 py-2 font-medium">Type</th>
                       <th className="px-4 py-2 font-medium">Asset</th>
+                      <th className="px-4 py-2 font-medium">Entry / Exit</th>
                       <th className="px-4 py-2 font-medium">Amount</th>
-                      <th className="px-4 py-2 font-medium">Result</th>
+                      <th className="px-4 py-2 font-medium">Profit/Loss</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredHistory.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-text-muted italic">
+                        <td colSpan={6} className="px-4 py-8 text-center text-text-muted italic">
                           No records found for this filter.
                         </td>
                       </tr>
@@ -218,6 +219,12 @@ export function BottomPanel({ activeTrades, tradeHistory, user, currentPrice }: 
                             </span>
                           </td>
                           <td className="px-4 py-2 font-bold text-text-primary">{item.symbol}</td>
+                          <td className="px-4 py-2 text-text-secondary">
+                            <div className="flex flex-col">
+                              <span className="text-[10px]">${(item.entryPrice || item.entry || 0).toLocaleString()}</span>
+                              <span className="text-[9px] text-text-muted">${(item.exitPrice || item.exit || 0).toLocaleString()}</span>
+                            </div>
+                          </td>
                           <td className="px-4 py-2 text-text-secondary">${item.amount.toLocaleString()}</td>
                           <td className="px-4 py-2">
                             <span className={cn(

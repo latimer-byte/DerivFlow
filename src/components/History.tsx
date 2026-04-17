@@ -230,8 +230,8 @@ export function History({ tradeHistory, transactionHistory }: HistoryProps) {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="text-xs font-mono text-text-secondary">{(trade.entry || 0).toFixed(4)}</span>
-                        <span className="text-xs font-mono text-text-muted">{(trade.exit || 0).toFixed(4)}</span>
+                        <span className="text-xs font-mono text-text-secondary">{(trade.entry || trade.entryPrice || 0).toFixed(4)}</span>
+                        <span className="text-xs font-mono text-text-muted">{(trade.exit || trade.exitPrice || 0).toFixed(4)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
