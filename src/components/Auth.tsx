@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, Mail, Lock, User, ArrowRight, Github, Chrome, Fingerprint } from 'lucide-react';
+import { Zap, Mail, Lock, User, ArrowRight, Github, Chrome, Fingerprint, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
 import { signInWithGoogle } from '@/lib/firebase';
@@ -12,6 +12,7 @@ export function Auth({ onLogin }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -216,13 +217,20 @@ export function Auth({ onLogin }: AuthProps) {
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                 <input 
-                  type="password" 
+                  type={showPassword ? "text" : "password"} 
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-4 text-sm text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/20 transition-all font-medium"
+                  className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-12 text-sm text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/20 transition-all font-medium"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-secondary rounded-lg transition-colors text-text-muted"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 

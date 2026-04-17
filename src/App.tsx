@@ -46,6 +46,15 @@ export default function App() {
   const [timeframe, setTimeframe] = useState('1M');
   const [notification, setNotification] = useState<{ type: 'win' | 'loss', amount: number } | null>(null);
 
+  // Sync state with local storage when user UID is available
+  useEffect(() => {
+    if (user?.uid) {
+      setBalance(StorageService.getBalance(user.uid));
+      setTradeHistory(StorageService.getTrades(user.uid));
+      setTransactions(StorageService.getTransactions(user.uid));
+    }
+  }, [user?.uid]);
+
   // Firebase Auth Listener
   useEffect(() => {
     try {
@@ -82,11 +91,11 @@ export default function App() {
           const result = win ? 'win' : 'loss';
           const payout = win ? trade.amount * 1.95 : trade.amount * 0.5;
 
-          const currentBalance = StorageService.getBalance();
+          const currentBalance = StorageService.getBalance(user.uid);
           const newBalance = currentBalance + payout;
           
           setBalance(newBalance);
-          StorageService.saveBalance(newBalance);
+          StorageService.saveBalance(newBalance, user.uid);
 
           const completedTrade = {
             ...trade,
@@ -102,7 +111,7 @@ export default function App() {
           setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
 
           // Save Locally
-          StorageService.addTrade(completedTrade);
+          StorageService.addTrade(completedTrade, user.uid);
           
           // Generate Transaction for history persistence
           StorageService.addTransaction({
@@ -113,11 +122,11 @@ export default function App() {
             displayAmount: `${result === 'win' ? '+' : '-'}$${Math.abs(payout - trade.amount).toFixed(2)}`,
             status: 'COMPLETED',
             timestamp: now
-          });
+          }, user.uid);
 
           // Update lists
-          setTradeHistory(StorageService.getTrades());
-          setTransactions(StorageService.getTransactions());
+          setTradeHistory(StorageService.getTrades(user.uid));
+          setTransactions(StorageService.getTransactions(user.uid));
 
           // Save to Firestore (optional/quiet, since user declined)
           try {
@@ -424,7 +433,7 @@ export default function App() {
               setActiveTrades(prev => [newTrade, ...prev]);
               
               // Local Persistence
-              StorageService.addTrade(newTrade);
+              StorageService.addTrade(newTrade, user.uid);
 
               // Persist as OPEN trade if not mock
               try {
@@ -474,9 +483,9 @@ export default function App() {
               setBalance={setBalance} 
               transactions={transactions}
               onTransaction={(tx) => {
-                StorageService.addTransaction(tx);
-                StorageService.saveBalance(tx.balance);
-                setTransactions(StorageService.getTransactions());
+                StorageService.addTransaction(tx, user.uid);
+                StorageService.saveBalance(tx.balance, user.uid);
+                setTransactions(StorageService.getTransactions(user.uid));
               }}
             />
           </div>
