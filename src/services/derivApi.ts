@@ -84,6 +84,7 @@ class DerivService {
           }
           
           if (reqId !== undefined) {
+            this.trigger(`req_${reqId}`, data);
             this.trigger(`${msgType}_${reqId}`, data);
           }
           return;
@@ -280,7 +281,7 @@ class DerivService {
       const timeout = setTimeout(() => {
         this.off(`req_${reqId}`, listener);
         reject(new Error(`History request for ${symbol} timed out (req_id: ${reqId})`));
-      }, 10000); // 10s is plenty for a response
+      }, 15000); // Increased to 15s
 
       const listener = (data: any) => {
         if (data.req_id === reqId) {
@@ -326,7 +327,7 @@ class DerivService {
       const timeout = setTimeout(() => {
         this.off(`req_${reqId}`, listener);
         reject(new Error(`Candles request for ${symbol} timed out (req_id: ${reqId})`));
-      }, 10000);
+      }, 15000); // Increased to 15s
 
       const listener = (data: any) => {
         if (data.req_id === reqId) {

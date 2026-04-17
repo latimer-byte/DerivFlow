@@ -100,74 +100,76 @@ export default function App() {
 
   // Trade Lifecycle Manager
   useEffect(() => {
-    if (!user?.uid || activeTrades.length === 0) return;
+    if (!user?.uid || activeTrades.length === 0 || !currentTick) return;
 
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const finishedTrades = activeTrades.filter(t => (t.timestamp + t.duration * 1000) <= now);
+    const now = Date.now();
+    const finishedTrades = activeTrades.filter(t => (t.timestamp + (t.duration * 1000)) <= now);
 
-      if (finishedTrades.length > 0) {
-        finishedTrades.forEach(async (trade) => {
-          // Calculate result
-          const win = Math.random() > 0.45;
-          const result = win ? 'win' : 'loss';
-          const payout = win ? trade.amount * 1.95 : trade.amount * 0.5;
+    if (finishedTrades.length > 0) {
+      console.log(`Processing ${finishedTrades.length} finished trades`);
+      
+      let balanceAdjustment = 0;
+      const tradeIdsToRemove = finishedTrades.map(t => t.id);
 
-          const currentBalance = StorageService.getBalance(user.uid);
-          const newBalance = currentBalance + payout;
-          
-          setBalance(newBalance);
-          StorageService.saveBalance(newBalance, user.uid);
+      finishedTrades.forEach(async (trade) => {
+        // Calculate result
+        const isWin = trade.type === 'buy' 
+          ? currentTick.quote > trade.entryPrice 
+          : currentTick.quote < trade.entryPrice;
+        
+        const result = isWin ? 'win' : 'loss';
+        const payout = isWin ? trade.amount * 1.95 : trade.amount * 0.5; // 50% loss guard
+        balanceAdjustment += payout;
 
-          const completedTrade = {
-            ...trade,
-            status: 'CLOSED',
-            result,
-            payout,
-            exit: currentTick?.quote || trade.entryPrice,
-            profit: payout - trade.amount,
-            closedAt: now
-          };
+        const completedTrade = {
+          ...trade,
+          status: 'CLOSED',
+          result,
+          payout,
+          exit: currentTick.quote,
+          profit: payout - trade.amount,
+          closedAt: now
+        };
 
-          // Update activeTrades state
-          setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
+        // Save Locally
+        StorageService.addTrade(completedTrade, user.uid);
+        
+        // Generate Transaction
+        StorageService.addTransaction({
+          userId: user.uid,
+          type: result === 'win' ? 'trade_win' : 'trade_loss',
+          label: `${trade.type.toUpperCase()} ${trade.symbol} (${trade.amount}$)`,
+          amount: payout,
+          displayAmount: `${result === 'win' ? '+' : '-'}$${Math.abs(payout - trade.amount).toFixed(2)}`,
+          status: 'COMPLETED',
+          timestamp: now
+        }, user.uid);
 
-          // Save Locally
-          StorageService.addTrade(completedTrade, user.uid);
-          
-          // Generate Transaction for history persistence
-          StorageService.addTransaction({
-            userId: user.uid,
-            type: result === 'win' ? 'trade_win' : 'trade_loss',
-            label: `${trade.type.toUpperCase()} ${trade.symbol} (${trade.amount}$)`,
-            amount: payout,
-            displayAmount: `${result === 'win' ? '+' : '-'}$${Math.abs(payout - trade.amount).toFixed(2)}`,
-            status: 'COMPLETED',
-            timestamp: now
-          }, user.uid);
-
-          // Update lists
-          setTradeHistory(StorageService.getTrades(user.uid));
-          setTransactions(StorageService.getTransactions(user.uid));
-
-          // Save to Firestore (optional/quiet, since user declined)
-          try {
-            if (!auth.isMock) {
-              await setDoc(doc(db, 'trades', trade.id), completedTrade);
-            }
-          } catch (error) {
-            // handleFirestoreError(error, OperationType.UPDATE, 'trades');
+        // Save to Firestore (optional/quiet)
+        try {
+          if (!auth.isMock) {
+            await setDoc(doc(db, 'trades', trade.id), completedTrade);
           }
-          
-          // Show notification
-          setNotification({ type: result, amount: payout });
-          setTimeout(() => setNotification(null), 3000);
-        });
-      }
-    }, 1000);
+        } catch (error) {
+          // Silent catch
+        }
+        
+        setNotification({ type: result, amount: payout });
+        setTimeout(() => setNotification(null), 3000);
+      });
 
-    return () => clearInterval(interval);
-  }, [user?.uid, activeTrades, currentTick?.quote]);
+      // Batch state updates
+      const currentBalance = StorageService.getBalance(user.uid);
+      const newBalance = currentBalance + balanceAdjustment;
+      
+      setBalance(newBalance);
+      StorageService.saveBalance(newBalance, user.uid);
+      
+      setActiveTrades(prev => prev.filter(t => !tradeIdsToRemove.includes(t.id)));
+      setTradeHistory(StorageService.getTrades(user.uid));
+      setTransactions(StorageService.getTransactions(user.uid));
+    }
+  }, [user?.uid, activeTrades, currentTick]);
 
   // Sync local balance whenever it changes
   useEffect(() => {
@@ -290,6 +292,7 @@ export default function App() {
   // Initialize market data
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    let isActive = true;
 
     const initMarket = async () => {
       setIsReady(false);
@@ -311,12 +314,15 @@ export default function App() {
           derivApi.getCandles(selectedSymbol, granularity, 100)
         ]);
 
+        if (!isActive) return;
+
         setHistory(initialHistory);
         setCandles(initialCandles);
         setIsReady(true);
 
         // Subscribe to ticks
         unsubscribe = derivApi.subscribeTicks(selectedSymbol, (tick) => {
+          if (!isActive) return;
           setCurrentTick(tick);
           
           // Update history
@@ -362,21 +368,21 @@ export default function App() {
           });
         });
       } catch (error) {
+        if (!isActive) return;
         console.error('Failed to initialize market:', error);
         
         // If it's a timeout or connection error, we might want to retry once
         setTimeout(() => {
-          if (!isReady) {
-            console.log('Retrying market initialization...');
-            // Fallback to ensure UI isn't stuck if retry also fails
-            setIsReady(true);
-            if (history.length === 0) {
-              // Provide a base price based on the symbol if possible
-              const basePrice = selectedSymbol.startsWith('R_') ? 1000 : 1.0;
-              const now = Math.floor(Date.now() / 1000);
-              setHistory([{ epoch: now, quote: basePrice }]);
-              setCandles([{ epoch: now, open: basePrice, high: basePrice * 1.01, low: basePrice * 0.99, close: basePrice }]);
-            }
+          if (!isActive || isReady) return;
+          console.log('Retrying market initialization...');
+          // Fallback to ensure UI isn't stuck if retry also fails
+          setIsReady(true);
+          if (history.length === 0) {
+            // Provide a base price based on the symbol if possible
+            const basePrice = selectedSymbol.startsWith('R_') ? 1000 : 1.0;
+            const now = Math.floor(Date.now() / 1000);
+            setHistory([{ epoch: now, quote: basePrice }]);
+            setCandles([{ epoch: now, open: basePrice, high: basePrice * 1.01, low: basePrice * 0.99, close: basePrice }]);
           }
         }, 5000);
       }
@@ -385,6 +391,7 @@ export default function App() {
     initMarket();
 
     return () => {
+      isActive = false;
       if (unsubscribe) unsubscribe();
     };
   }, [selectedSymbol, timeframe]);
@@ -438,7 +445,12 @@ export default function App() {
             />
           </div>
           <div className="hidden sm:block">
-            <BottomPanel activeTrades={activeTrades} tradeHistory={tradeHistory} user={user} />
+            <BottomPanel 
+              activeTrades={activeTrades} 
+              tradeHistory={tradeHistory} 
+              user={user} 
+              currentPrice={currentTick?.quote}
+            />
           </div>
         </div>
 
@@ -472,7 +484,12 @@ export default function App() {
           />
           {/* Mobile version of BottomPanel or just show it below */}
           <div className="sm:hidden border-t border-border">
-            <BottomPanel activeTrades={activeTrades} tradeHistory={tradeHistory} user={user} />
+            <BottomPanel 
+              activeTrades={activeTrades} 
+              tradeHistory={tradeHistory} 
+              user={user} 
+              currentPrice={currentTick?.quote}
+            />
           </div>
         </div>
       </div>

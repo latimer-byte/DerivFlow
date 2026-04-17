@@ -9,9 +9,10 @@ interface BottomPanelProps {
   user: {
     id: string;
   };
+  currentPrice?: number;
 }
 
-export function BottomPanel({ activeTrades, tradeHistory, user }: BottomPanelProps) {
+export function BottomPanel({ activeTrades, tradeHistory, user, currentPrice }: BottomPanelProps) {
   const [activeTab, setActiveTab] = React.useState<'active' | 'history' | 'logs'>('active');
   const [historyFilter, setHistoryFilter] = useState<'all' | 'wins' | 'losses' | 'deposits' | 'withdrawals'>('all');
 
@@ -99,8 +100,8 @@ export function BottomPanel({ activeTrades, tradeHistory, user }: BottomPanelPro
                     </td>
                   </tr>
                 ) : (
-                  activeTrades.map((trade, i) => (
-                    <tr key={i} className="border-b border-border/50 hover:bg-secondary/10 transition-colors">
+                  activeTrades.map((trade) => (
+                    <tr key={trade.id} className="border-b border-border/50 hover:bg-secondary/10 transition-colors">
                       <td className="px-4 py-2 font-bold text-text-primary">{trade.symbol}</td>
                       <td className="px-4 py-2">
                         <span className={cn(
@@ -113,7 +114,20 @@ export function BottomPanel({ activeTrades, tradeHistory, user }: BottomPanelPro
                       <td className="px-4 py-2 text-text-secondary">${trade.entryPrice.toLocaleString()}</td>
                       <td className="px-4 py-2 text-text-secondary">${trade.amount.toLocaleString()}</td>
                       <td className="px-4 py-2 text-text-secondary">{trade.duration}s</td>
-                      <td className="px-4 py-2 font-bold text-bullish">+$0.00</td>
+                      <td className={cn(
+                        "px-4 py-2 font-bold",
+                        currentPrice && (
+                          (trade.type === 'buy' && currentPrice > trade.entryPrice) ||
+                          (trade.type === 'sell' && currentPrice < trade.entryPrice)
+                        ) ? "text-bullish" : "text-bearish"
+                      )}>
+                        {currentPrice ? (
+                          ((trade.type === 'buy' && currentPrice > trade.entryPrice) ||
+                           (trade.type === 'sell' && currentPrice < trade.entryPrice)) ? 
+                           `+$${(trade.amount * 0.95).toFixed(2)}` : 
+                           `-$${(trade.amount * 0.5).toFixed(2)}`
+                        ) : '...'}
+                      </td>
                     </tr>
                   ))
                 )}
