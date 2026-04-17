@@ -109,8 +109,9 @@ class DerivService {
         // Handle generic message type listeners
         this.trigger(msgType, data);
         
-        // Handle specific request ID listeners
+        // Handle specific request ID listeners - prioritize req_id as unique identifier
         if (reqId !== undefined) {
+          this.trigger(`req_${reqId}`, data);
           this.trigger(`${msgType}_${reqId}`, data);
         }
         
@@ -277,22 +278,22 @@ class DerivService {
       console.log(`Requesting history for ${symbol} (req_id: ${reqId})`);
       
       const timeout = setTimeout(() => {
-        this.off(`history_${reqId}`, listener);
+        this.off(`req_${reqId}`, listener);
         reject(new Error(`History request for ${symbol} timed out (req_id: ${reqId})`));
-      }, 20000);
+      }, 10000); // 10s is plenty for a response
 
       const listener = (data: any) => {
-        if (data.msg_type === 'history' && data.req_id === reqId) {
+        if (data.req_id === reqId) {
           clearTimeout(timeout);
-          this.off(`history_${reqId}`, listener);
+          this.off(`req_${reqId}`, listener);
           
           if (data.error) {
-            reject(new Error(data.error.message));
+            reject(new Error(data.error.message || 'Unknown Deriv API error'));
             return;
           }
 
-          if (!data.history || !data.history.times) {
-            reject(new Error('Invalid history data received'));
+          if (data.msg_type !== 'history' || !data.history || !data.history.times) {
+            reject(new Error(`Expected history response, got ${data.msg_type}`));
             return;
           }
 
@@ -304,7 +305,7 @@ class DerivService {
         }
       };
 
-      this.on(`history_${reqId}`, listener);
+      this.on(`req_${reqId}`, listener);
 
       this.send({
         ticks_history: symbol,
@@ -323,22 +324,22 @@ class DerivService {
       console.log(`Requesting candles for ${symbol} (req_id: ${reqId})`);
       
       const timeout = setTimeout(() => {
-        this.off(`candles_${reqId}`, listener);
+        this.off(`req_${reqId}`, listener);
         reject(new Error(`Candles request for ${symbol} timed out (req_id: ${reqId})`));
-      }, 20000);
+      }, 10000);
 
       const listener = (data: any) => {
-        if (data.msg_type === 'candles' && data.req_id === reqId) {
+        if (data.req_id === reqId) {
           clearTimeout(timeout);
-          this.off(`candles_${reqId}`, listener);
+          this.off(`req_${reqId}`, listener);
           
           if (data.error) {
-            reject(new Error(data.error.message));
+            reject(new Error(data.error.message || 'Unknown Deriv API error'));
             return;
           }
 
-          if (!data.candles) {
-            reject(new Error('No candles data received'));
+          if (data.msg_type !== 'candles' || !data.candles) {
+            reject(new Error(`Expected candles response, got ${data.msg_type}`));
             return;
           }
 
@@ -353,7 +354,7 @@ class DerivService {
         }
       };
 
-      this.on(`candles_${reqId}`, listener);
+      this.on(`req_${reqId}`, listener);
 
       this.send({
         ticks_history: symbol,

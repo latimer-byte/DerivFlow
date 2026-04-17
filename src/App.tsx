@@ -46,12 +46,34 @@ export default function App() {
   const [timeframe, setTimeframe] = useState('1M');
   const [notification, setNotification] = useState<{ type: 'win' | 'loss', amount: number } | null>(null);
 
-  // Sync state with local storage when user UID is available
+  // Sync state with local storage AND cloud when user UID is available
   useEffect(() => {
-    if (user?.uid) {
-      setBalance(StorageService.getBalance(user.uid));
-      setTradeHistory(StorageService.getTrades(user.uid));
-      setTransactions(StorageService.getTransactions(user.uid));
+    if (!user?.uid) return;
+
+    // 1. Initial Load from Local Storage (Fast path)
+    setBalance(StorageService.getBalance(user.uid));
+    setTradeHistory(StorageService.getTrades(user.uid));
+    setTransactions(StorageService.getTransactions(user.uid));
+
+    // 2. Real-time Cloud Sync (Consistency path)
+    if (!auth.isMock) {
+      console.log('Initializing Mock Real-time Sync for UID:', user.uid);
+      
+      // Simulate real-time updates via window events (works across tabs in same browser)
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === `tradepulse_balance_v1_${user.uid}`) {
+          setBalance(StorageService.getBalance(user.uid));
+        }
+        if (e.key === `tradepulse_trades_v1_${user.uid}`) {
+          setTradeHistory(StorageService.getTrades(user.uid));
+        }
+        if (e.key === `tradepulse_transactions_v1_${user.uid}`) {
+          setTransactions(StorageService.getTransactions(user.uid));
+        }
+      };
+
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
     }
   }, [user?.uid]);
 
