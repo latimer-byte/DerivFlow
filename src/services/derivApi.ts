@@ -273,7 +273,51 @@ class DerivService {
     };
   }
 
-  public getHistory(symbol: string, count: number = 100) {
+  private async waitForReady(): Promise<void> {
+    if (this.isConnected && (!this.token || this.isAuthorized)) {
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      const checkTimeout = setTimeout(() => {
+        this.off('authorize', onAuth);
+        reject(new Error('Deriv API connection/auth timed out'));
+      }, 20000);
+
+      const onAuth = () => {
+        clearTimeout(checkTimeout);
+        this.off('authorize', onAuth);
+        resolve();
+      };
+
+      if (!this.isConnected) {
+        // Wait for connect event? We already have authorize as a signal after connect
+        this.on('authorize', onAuth);
+        if (!this.token) {
+          // If no token, we just wait for connection (ping response as heart-beat)
+          const onConnect = () => {
+            clearTimeout(checkTimeout);
+            this.off('ping', onConnect);
+            resolve();
+          };
+          this.on('ping', onConnect);
+          this.send({ ping: 1 });
+        }
+      } else {
+        this.on('authorize', onAuth);
+      }
+    });
+  }
+
+  public async getHistory(symbol: string, count: number = 100) {
+    try {
+      if (this.token && !this.isAuthorized) {
+        await this.waitForReady();
+      }
+    } catch (e) {
+      console.warn("History request proceeding without full auth wait", e);
+    }
+
     return new Promise<HistoryPoint[]>((resolve, reject) => {
       const reqId = ++this.reqIdCounter;
       console.log(`Requesting history for ${symbol} (req_id: ${reqId})`);
@@ -281,7 +325,7 @@ class DerivService {
       const timeout = setTimeout(() => {
         this.off(`req_${reqId}`, listener);
         reject(new Error(`History request for ${symbol} timed out (req_id: ${reqId})`));
-      }, 15000); // Increased to 15s
+      }, 25000);
 
       const listener = (data: any) => {
         if (data.req_id === reqId) {
@@ -319,7 +363,15 @@ class DerivService {
     });
   }
 
-  public getCandles(symbol: string, granularity: number = 60, count: number = 100) {
+  public async getCandles(symbol: string, granularity: number = 60, count: number = 100) {
+    try {
+      if (this.token && !this.isAuthorized) {
+        await this.waitForReady();
+      }
+    } catch (e) {
+      console.warn("Candle request proceeding without full auth wait", e);
+    }
+
     return new Promise<Candle[]>((resolve, reject) => {
       const reqId = ++this.reqIdCounter;
       console.log(`Requesting candles for ${symbol} (req_id: ${reqId})`);
@@ -327,7 +379,7 @@ class DerivService {
       const timeout = setTimeout(() => {
         this.off(`req_${reqId}`, listener);
         reject(new Error(`Candles request for ${symbol} timed out (req_id: ${reqId})`));
-      }, 15000); // Increased to 15s
+      }, 25000);
 
       const listener = (data: any) => {
         if (data.req_id === reqId) {

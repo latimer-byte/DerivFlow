@@ -6,13 +6,15 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } 
 interface BottomPanelProps {
   activeTrades: any[];
   tradeHistory: any[];
+  transactions?: any[];
   user: {
-    id: string;
+    uid: string;
+    [key: string]: any;
   };
   currentPrice?: number;
 }
 
-export function BottomPanel({ activeTrades, tradeHistory, user, currentPrice }: BottomPanelProps) {
+export function BottomPanel({ activeTrades, tradeHistory, transactions = [], user, currentPrice }: BottomPanelProps) {
   const [activeTab, setActiveTab] = React.useState<'active' | 'history' | 'logs'>('active');
   const [historyFilter, setHistoryFilter] = useState<'all' | 'wins' | 'losses' | 'deposits' | 'withdrawals'>('all');
 
@@ -21,10 +23,16 @@ export function BottomPanel({ activeTrades, tradeHistory, user, currentPrice }: 
     const losses = tradeHistory.filter(t => t.result === 'loss').length;
     const totalTrades = wins + losses;
     
-    const deposits = 5000; // Mock data
-    const withdrawals = 1200; // Mock data
-    const totalWins = tradeHistory.filter(t => t.result === 'win').reduce((acc, t) => acc + (t.profit || (t.payout - t.amount) || 0), 0);
-    const totalLosses = tradeHistory.filter(t => t.result === 'loss').reduce((acc, t) => acc + (t.amount || 0), 0);
+    const deposits = transactions
+      .filter(tx => tx.type === 'deposit')
+      .reduce((acc, tx) => acc + (tx.amount || 0), 0);
+      
+    const withdrawals = transactions
+      .filter(tx => tx.type === 'withdrawal')
+      .reduce((acc, tx) => acc + (tx.amount || 0), 0);
+
+    const totalWins = tradeHistory.filter(t => t.result === 'win').reduce((acc, t) => acc + (t.profit || (t.payout - (t.amount || 0)) || 0), 0);
+    const totalLosses = tradeHistory.filter(t => t.result === 'loss').reduce((acc, t) => acc + (Math.abs(t.profit) || t.amount || 0), 0);
 
     return {
       wins,
@@ -36,7 +44,7 @@ export function BottomPanel({ activeTrades, tradeHistory, user, currentPrice }: 
       totalLosses,
       netProfit: tradeHistory.reduce((acc, t) => acc + (t.profit || 0), 0)
     };
-  }, [tradeHistory]);
+  }, [tradeHistory, transactions]);
 
   const pieData = [
     { name: 'Wins', value: stats.wins, color: 'var(--color-bullish)' },

@@ -47,12 +47,30 @@ export default function App() {
   const [notification, setNotification] = useState<{ type: 'win' | 'loss', amount: number } | null>(null);
 
   const dashboardStats = useMemo(() => {
-    const netProfit = tradeHistory.reduce((acc, t) => acc + (t.profit || 0), 0);
-    const netLoss = tradeHistory.filter(t => t.result === 'loss').reduce((acc, t) => acc + (t.amount || 0), 0);
-    const totalDeposits = transactions.filter(tx => tx.type === 'deposit').reduce((acc, tx) => acc + (tx.amount || 0), 0);
-    const totalWithdrawals = transactions.filter(tx => tx.type === 'withdrawal').reduce((acc, tx) => acc + (tx.amount || 0), 0);
+    // Net Profit: Sum of all positive outcomes
+    const netProfit = tradeHistory
+      .filter(t => (t.profit || 0) > 0)
+      .reduce((acc, t) => acc + (t.profit || 0), 0);
     
-    return { netProfit, netLoss, totalDeposits, totalWithdrawals };
+    // Net Loss: Sum of all negative outcomes (as positive number)
+    const netLoss = tradeHistory
+      .filter(t => (t.profit || 0) < 0)
+      .reduce((acc, t) => acc + Math.abs(t.profit || 0), 0);
+      
+    const totalDeposits = transactions
+      .filter(tx => tx.type === 'deposit')
+      .reduce((acc, tx) => acc + (tx.amount || 0), 0);
+      
+    const totalWithdrawals = transactions
+      .filter(tx => tx.type === 'withdrawal')
+      .reduce((acc, tx) => acc + (tx.amount || 0), 0);
+    
+    return { 
+      netProfit: isNaN(netProfit) ? 0 : netProfit, 
+      netLoss: isNaN(netLoss) ? 0 : netLoss, 
+      totalDeposits: isNaN(totalDeposits) ? 0 : totalDeposits, 
+      totalWithdrawals: isNaN(totalWithdrawals) ? 0 : totalWithdrawals 
+    };
   }, [tradeHistory, transactions]);
 
   // Sync state with local storage AND cloud when user UID is available
@@ -120,63 +138,67 @@ export default function App() {
       let balanceAdjustment = 0;
       const tradeIdsToRemove = finishedTrades.map(t => t.id);
 
-      finishedTrades.forEach(async (trade) => {
-        // Calculate result
-        const isWin = trade.type === 'buy' 
-          ? currentTick.quote > trade.entryPrice 
-          : currentTick.quote < trade.entryPrice;
-        
-        const result = isWin ? 'win' : 'loss';
-        const payout = isWin ? trade.amount * 1.95 : trade.amount * 0.5; // 50% loss guard
-        balanceAdjustment += payout;
+      const processTrades = async () => {
+        let totalPayout = 0;
+        for (const trade of finishedTrades) {
+          // Calculate result
+          const isWin = trade.type === 'buy' 
+            ? currentTick.quote > trade.entryPrice 
+            : currentTick.quote < trade.entryPrice;
+          
+          const result = isWin ? 'win' : 'loss';
+          const payout = isWin ? trade.amount * 1.95 : trade.amount * 0.5; // 50% loss guard
+          totalPayout += payout;
 
-        const completedTrade = {
-          ...trade,
-          status: 'CLOSED',
-          result,
-          payout,
-          exit: currentTick.quote,
-          profit: payout - trade.amount,
-          closedAt: now
-        };
+          const completedTrade = {
+            ...trade,
+            status: 'CLOSED',
+            result,
+            payout,
+            exit: currentTick.quote,
+            profit: payout - trade.amount,
+            closedAt: now
+          };
 
-        // Save Locally
-        StorageService.addTrade(completedTrade, user.uid);
-        
-        // Generate Transaction
-        StorageService.addTransaction({
-          userId: user.uid,
-          type: result === 'win' ? 'trade_win' : 'trade_loss',
-          label: `${trade.type.toUpperCase()} ${trade.symbol} (${trade.amount}$)`,
-          amount: payout,
-          displayAmount: `${result === 'win' ? '+' : '-'}$${Math.abs(payout - trade.amount).toFixed(2)}`,
-          status: 'COMPLETED',
-          timestamp: now
-        }, user.uid);
+          // Save Locally
+          StorageService.addTrade(completedTrade, user.uid);
+          
+          // Generate Transaction
+          StorageService.addTransaction({
+            userId: user.uid,
+            type: result === 'win' ? 'trade_win' : 'trade_loss',
+            label: `${trade.type.toUpperCase()} ${trade.symbol} (${trade.amount}$)`,
+            amount: payout,
+            displayAmount: `${result === 'win' ? '+' : '-'}$${Math.abs(payout - trade.amount).toFixed(2)}`,
+            status: 'COMPLETED',
+            timestamp: now
+          }, user.uid);
 
-        // Save to Firestore (optional/quiet)
-        try {
+          // Save to Firestore (optional/quiet)
           if (!auth.isMock) {
-            await setDoc(doc(db, 'trades', trade.id), completedTrade);
+            try {
+              await setDoc(doc(db, 'trades', trade.id), completedTrade);
+            } catch (e) { /* ignore */ }
           }
-        } catch (error) {
-          // Silent catch
+          
+          setNotification({ type: result, amount: payout });
         }
-        
-        setNotification({ type: result, amount: payout });
-        setTimeout(() => setNotification(null), 3000);
-      });
 
-      // Batch state updates
-      const currentBalance = StorageService.getBalance(user.uid);
-      const newBalance = currentBalance + balanceAdjustment;
-      
-      setBalance(newBalance);
-      StorageService.saveBalance(newBalance, user.uid);
-      
-      setActiveTrades(prev => prev.filter(t => !tradeIdsToRemove.includes(t.id)));
-      setTradeHistory(StorageService.getTrades(user.uid));
-      setTransactions(StorageService.getTransactions(user.uid));
+        // Batch state updates
+        const currentBalance = StorageService.getBalance(user.uid);
+        const newBalanceValue = currentBalance + totalPayout;
+        
+        setBalance(newBalanceValue);
+        StorageService.saveBalance(newBalanceValue, user.uid);
+        
+        setActiveTrades(prev => prev.filter(t => !tradeIdsToRemove.includes(t.id)));
+        setTradeHistory(StorageService.getTrades(user.uid));
+        setTransactions(StorageService.getTransactions(user.uid));
+
+        setTimeout(() => setNotification(null), 3000);
+      };
+
+      processTrades();
     }
   }, [user?.uid, activeTrades, currentTick]);
 
@@ -458,6 +480,7 @@ export default function App() {
             <BottomPanel 
               activeTrades={activeTrades} 
               tradeHistory={tradeHistory} 
+              transactions={transactions}
               user={user} 
               currentPrice={currentTick?.quote}
             />
@@ -497,6 +520,7 @@ export default function App() {
             <BottomPanel 
               activeTrades={activeTrades} 
               tradeHistory={tradeHistory} 
+              transactions={transactions}
               user={user} 
               currentPrice={currentTick?.quote}
             />
