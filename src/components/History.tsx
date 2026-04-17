@@ -161,12 +161,12 @@ export function History({ tradeHistory, transactionHistory }: HistoryProps) {
         <StatCard label="Total Trades" value={filteredHistory.length.toString()} />
         <StatCard 
           label="Win Rate" 
-          value={`${filteredHistory.length > 0 ? ((filteredHistory.filter(t => t.profit > 0).length / filteredHistory.length) * 100).toFixed(1) : '0.0'}%`} 
+          value={`${filteredHistory.length > 0 ? ((filteredHistory.filter(t => (Number(t.profit) || 0) > 0).length / filteredHistory.length) * 100).toFixed(1) : '0.0'}%`} 
         />
         <StatCard 
           label="Net Profit" 
-          value={`$${filteredHistory.reduce((acc, t) => acc + t.profit, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-          isPositive={filteredHistory.reduce((acc, t) => acc + t.profit, 0) >= 0}
+          value={`$${filteredHistory.reduce((acc, t) => acc + (Number(t.profit) || 0), 0) >= 0 ? '' : '-'}${Math.abs(filteredHistory.reduce((acc, t) => acc + (Number(t.profit) || 0), 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          isPositive={filteredHistory.reduce((acc, t) => acc + (Number(t.profit) || 0), 0) >= 0}
         />
       </div>
 

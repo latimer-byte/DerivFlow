@@ -141,13 +141,21 @@ export default function App() {
       const processTrades = async () => {
         let totalPayout = 0;
         for (const trade of finishedTrades) {
+          const tradeAmount = Number(trade.amount) || 0;
+          const entryPrice = Number(trade.entryPrice || trade.entry || 0);
+          
+          // Use current price if it's for the same symbol, otherwise fallback to entry (Tie) 
+          // to avoid settling a Forex trade with a Crypto price.
+          const isSymbolMatch = trade.symbol === currentTick.symbol;
+          const exitPrice = isSymbolMatch ? (Number(currentTick.quote) || entryPrice) : entryPrice;
+
           // Calculate result
           const isWin = trade.type === 'buy' 
-            ? currentTick.quote > trade.entryPrice 
-            : currentTick.quote < trade.entryPrice;
+            ? exitPrice > entryPrice 
+            : exitPrice < entryPrice;
           
           const result = isWin ? 'win' : 'loss';
-          const payout = isWin ? trade.amount * 1.95 : trade.amount * 0.5; // 50% loss guard
+          const payout = isWin ? tradeAmount * 1.95 : tradeAmount * 0.5; // 50% loss guard
           totalPayout += payout;
 
           const completedTrade = {
@@ -155,8 +163,9 @@ export default function App() {
             status: 'CLOSED',
             result,
             payout,
-            exit: currentTick.quote,
-            profit: payout - trade.amount,
+            exit: exitPrice,
+            exitPrice: exitPrice,
+            profit: payout - tradeAmount,
             closedAt: now
           };
 
@@ -167,9 +176,9 @@ export default function App() {
           StorageService.addTransaction({
             userId: user.uid,
             type: result === 'win' ? 'trade_win' : 'trade_loss',
-            label: `${trade.type.toUpperCase()} ${trade.symbol} (${trade.amount}$)`,
+            label: `${trade.type.toUpperCase()} ${trade.symbol} (${tradeAmount}$)`,
             amount: payout,
-            displayAmount: `${result === 'win' ? '+' : '-'}$${Math.abs(payout - trade.amount).toFixed(2)}`,
+            displayAmount: `${result === 'win' ? '+' : '-'}$${Math.abs(payout - tradeAmount).toFixed(2)}`,
             status: 'COMPLETED',
             timestamp: now
           }, user.uid);
@@ -204,8 +213,10 @@ export default function App() {
 
   // Sync local balance whenever it changes
   useEffect(() => {
-    StorageService.saveBalance(balance);
-  }, [balance]);
+    if (user?.uid) {
+      StorageService.saveBalance(balance, user.uid);
+    }
+  }, [balance, user?.uid]);
 
   // Firebase Trade Sync
   useEffect(() => {

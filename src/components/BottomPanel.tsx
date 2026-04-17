@@ -31,8 +31,16 @@ export function BottomPanel({ activeTrades, tradeHistory, transactions = [], use
       .filter(tx => tx.type === 'withdrawal')
       .reduce((acc, tx) => acc + (tx.amount || 0), 0);
 
-    const totalWins = tradeHistory.filter(t => t.result === 'win').reduce((acc, t) => acc + (t.profit || (t.payout - (t.amount || 0)) || 0), 0);
-    const totalLosses = tradeHistory.filter(t => t.result === 'loss').reduce((acc, t) => acc + (Math.abs(t.profit) || t.amount || 0), 0);
+    const totalWins = tradeHistory.filter(t => t.result === 'win').reduce((acc, t) => {
+      const p = Number(t.profit) || (Number(t.payout) - Number(t.amount || 0)) || 0;
+      return acc + (isNaN(p) ? 0 : p);
+    }, 0);
+    const totalLosses = tradeHistory.filter(t => t.result === 'loss').reduce((acc, t) => {
+      const p = Math.abs(Number(t.profit) || Number(t.amount) || 0);
+      return acc + (isNaN(p) ? 0 : p);
+    }, 0);
+
+    const netProfitRaw = tradeHistory.reduce((acc, t) => acc + (Number(t.profit) || 0), 0);
 
     return {
       wins,
@@ -42,7 +50,7 @@ export function BottomPanel({ activeTrades, tradeHistory, transactions = [], use
       withdrawals,
       totalWins,
       totalLosses,
-      netProfit: tradeHistory.reduce((acc, t) => acc + (t.profit || 0), 0)
+      netProfit: isNaN(netProfitRaw) ? 0 : netProfitRaw
     };
   }, [tradeHistory, transactions]);
 
