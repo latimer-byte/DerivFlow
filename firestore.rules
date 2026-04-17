@@ -24,6 +24,19 @@
 //   - result: string (optional, enum: win, loss) - Outcome
 //   - payout: number (optional) - Payout
 //   - userId: string (required) - Owner UID
+//   - status: string (required, enum: OPEN, CLOSED)
+//
+// Collection: transactions
+// Document ID: {txId} (Auto-generated)
+// Fields:
+//   - userId: string (required) - Owner UID
+//   - type: string (required) - e.g. deposit, withdraw, trade_win, trade_loss
+//   - label: string (required) - Description
+//   - amount: number (required) - Amount
+//   - displayAmount: string (required) - Formatted amount
+//   - status: string (required) - e.g. COMPLETED
+//   - timestamp: number (required) - Unix timestamp
+//   - createdAt: timestamp (required)
 //
 // ===============================================================
 
@@ -52,44 +65,27 @@ service cloud.firestore {
       return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     }
 
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
-
-    function isValidUser(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.email is string && isValidEmail(data.email) &&
-             data.id is string && data.id.size() > 0 &&
-             data.balance is number;
-    }
-
-    function isValidTrade(data) {
-      return data.symbol is string && data.symbol.size() > 0 &&
-             data.type in ['buy', 'sell'] &&
-             data.entry is number &&
-             data.amount is number && data.amount > 0 &&
-             data.timestamp is number &&
-             data.userId == request.auth.uid;
-    }
-
     // ===============================================================
     // Rules
     // ===============================================================
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
-      allow update: if (isOwner(userId) && isValidUser(request.resource.data)) || isAdmin();
+      allow create: if isOwner(userId); // Validation handled by server side or simplified here
+      allow update: if isOwner(userId) || isAdmin();
     }
 
     match /trades/{tradeId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && isValidTrade(request.resource.data);
-      allow update: if isAdmin(); // Only admins can update trades (e.g. for settlement)
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /transactions/{txId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
   }

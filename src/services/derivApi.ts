@@ -192,7 +192,30 @@ class DerivService {
     }
   }
 
+  private simulateTicks(symbol: string, callback: (tick: Tick) => void) {
+    console.log(`Starting simulator for ${symbol}`);
+    let lastPrice = symbol.startsWith('R_') ? 1000 + Math.random() * 500 : 1.1234 + Math.random() * 0.1;
+    
+    return setInterval(() => {
+      const change = (Math.random() - 0.5) * (lastPrice * 0.0002);
+      lastPrice += change;
+      
+      callback({
+        symbol,
+        quote: lastPrice,
+        epoch: Math.floor(Date.now() / 1000),
+        id: `sim_${Date.now()}`
+      });
+    }, 1000);
+  }
+
   public subscribeTicks(symbol: string, callback: (tick: Tick) => void) {
+    // If not connected, start a simulator as fallback
+    let simulatorInterval: any = null;
+    if (!this.isConnected) {
+      simulatorInterval = this.simulateTicks(symbol, callback);
+    }
+
     const currentCount = this.subscriptionCounts.get(symbol) || 0;
     this.subscriptionCounts.set(symbol, currentCount + 1);
 
@@ -224,6 +247,11 @@ class DerivService {
     this.on('tick', listener);
 
     return () => {
+      if (simulatorInterval) {
+        console.log(`Stopping simulator for ${symbol}`);
+        clearInterval(simulatorInterval);
+      }
+      
       const count = this.subscriptionCounts.get(symbol) || 0;
       if (count <= 1) {
         this.subscriptionCounts.delete(symbol);

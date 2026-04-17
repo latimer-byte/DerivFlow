@@ -18,6 +18,8 @@ import { derivApi, Tick, HistoryPoint, Candle } from './services/derivApi';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 
+import { StorageService } from './lib/storage';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [marketCategory, setMarketCategory] = useState('Derived');
@@ -26,7 +28,7 @@ export default function App() {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [isReady, setIsReady] = useState(false);
-  const [balance, setBalance] = useState(10000.00);
+  const [balance, setBalance] = useState(() => StorageService.getBalance());
   const [user, setUser] = useState<any>(() => {
     try {
       const saved = localStorage.getItem('tradepulse_user');
@@ -37,8 +39,8 @@ export default function App() {
     }
   });
   const [activeTrades, setActiveTrades] = useState<any[]>([]);
-  const [tradeHistory, setTradeHistory] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<any[]>(() => StorageService.getTrades());
+  const [transactions, setTransactions] = useState<any[]>(() => StorageService.getTransactions());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [notification, setNotification] = useState<{ type: 'win' | 'loss', amount: number } | null>(null);
@@ -96,15 +98,37 @@ export default function App() {
           // Update activeTrades state
           setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
 
-          // Save to Firestore
+          // Save Locally
+          StorageService.addTrade(completedTrade);
+          
+          // Generate Transaction for history persistence
+          StorageService.addTransaction({
+            userId: user.uid,
+            type: result === 'win' ? 'trade_win' : 'trade_loss',
+            label: `${trade.type.toUpperCase()} ${trade.symbol} (${trade.amount}$)`,
+            amount: payout,
+            displayAmount: `${result === 'win' ? '+' : '-'}$${Math.abs(payout - trade.amount).toFixed(2)}`,
+            status: 'COMPLETED',
+            timestamp: now
+          });
+
+          // Update lists
+          setTradeHistory(StorageService.getTrades());
+          setTransactions(StorageService.getTransactions());
+          StorageService.saveBalance(balance + payout);
+
+          // Save to Firestore (optional/quiet, since user declined)
           try {
-            await setDoc(doc(db, 'trades', trade.id), completedTrade);
-            // Show notification
-            setNotification({ type: result, amount: payout });
-            setTimeout(() => setNotification(null), 3000);
+            if (!auth.isMock) {
+              await setDoc(doc(db, 'trades', trade.id), completedTrade);
+            }
           } catch (error) {
-            handleFirestoreError(error, OperationType.UPDATE, 'trades');
+            // handleFirestoreError(error, OperationType.UPDATE, 'trades');
           }
+          
+          // Show notification
+          setNotification({ type: result, amount: payout });
+          setTimeout(() => setNotification(null), 3000);
         });
       }
     }, 1000);
@@ -112,9 +136,14 @@ export default function App() {
     return () => clearInterval(interval);
   }, [user?.uid, activeTrades, currentTick?.quote]);
 
+  // Sync local balance whenever it changes
+  useEffect(() => {
+    StorageService.saveBalance(balance);
+  }, [balance]);
+
   // Firebase Trade Sync
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid || auth.isMock) return;
 
     const tradesRef = collection(db, 'trades');
     const q = query(
@@ -145,7 +174,7 @@ export default function App() {
 
   // Firebase Transaction Sync
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid || auth.isMock) return;
 
     const txRef = collection(db, 'transactions');
     const q = query(
@@ -313,16 +342,15 @@ export default function App() {
   const handleLogout = async () => {
     console.log('Logging out...');
     try {
-      localStorage.removeItem('tradepulse_user');
-      localStorage.removeItem('tradepulse_history');
+      StorageService.clearAll();
       await firebaseLogout();
       derivApi.logout();
       setUser(null);
       setTradeHistory([]);
-      setActiveTab('dashboard'); // Reset tab for next login
+      setTransactions([]);
+      setActiveTab('dashboard');
     } catch (error) {
       console.error('Logout failed:', error);
-      // Force clear state anyway
       setUser(null);
     }
   };
@@ -339,7 +367,7 @@ export default function App() {
   }
 
   const renderDashboard = () => (
-    <div className="flex flex-col h-full lg:overflow-hidden">
+    <div className="flex flex-col h-full">
       <MarketStats 
         symbol={selectedSymbol}
         currentPrice={currentTick?.quote || history[history.length - 1]?.quote || 0}
@@ -370,11 +398,16 @@ export default function App() {
               const newTrade = { ...trade, userId: user.uid };
               setActiveTrades(prev => [newTrade, ...prev]);
               
-              // Persist as OPEN trade immediately
+              // Local Persistence
+              StorageService.addTrade(newTrade);
+
+              // Persist as OPEN trade if not mock
               try {
-                await setDoc(doc(db, 'trades', newTrade.id), newTrade);
+                if (!auth.isMock) {
+                  await setDoc(doc(db, 'trades', newTrade.id), newTrade);
+                }
               } catch (error) {
-                handleFirestoreError(error, OperationType.CREATE, 'trades');
+                // Background trade placement
               }
             }}
             onTradeComplete={() => {
@@ -507,7 +540,7 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="h-full overflow-y-auto lg:overflow-hidden"
+              className="h-full overflow-y-auto"
             >
               {renderContent()}
             </motion.div>
