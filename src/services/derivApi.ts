@@ -56,17 +56,22 @@ class DerivService {
       // Authorize if token is available
       if (this.token) {
         this.authorize(this.token);
+        // Queue will be processed in onmessage when 'authorize' is received
+      } else {
+        // If no token, we can process queue immediately
+        console.log(`Connection established (no token). Processing ${this.messageQueue.length} queued messages.`);
+        const queueSize = this.messageQueue.length;
+        for (let i = 0; i < queueSize; i++) {
+          const msg = this.messageQueue.shift();
+          if (msg) this.send(msg);
+        }
       }
 
       // Start ping to keep connection alive
+      if (this.pingInterval) clearInterval(this.pingInterval);
       this.pingInterval = setInterval(() => {
         this.send({ ping: 1 });
       }, 30000);
-
-      while (this.messageQueue.length > 0) {
-        const msg = this.messageQueue.shift();
-        this.send(msg);
-      }
     };
 
     this.socket.onmessage = (event) => {
@@ -96,9 +101,11 @@ class DerivService {
           console.log('Deriv API: Authorized successfully');
           
           // Now that we are authorized, we can send queued messages
-          while (this.messageQueue.length > 0) {
+          console.log(`Authorization complete. Processing ${this.messageQueue.length} queued messages.`);
+          const queueSize = this.messageQueue.length;
+          for (let i = 0; i < queueSize; i++) {
             const msg = this.messageQueue.shift();
-            this.send(msg);
+            if (msg) this.send(msg);
           }
         }
 
@@ -309,7 +316,7 @@ class DerivService {
     });
   }
 
-  public async getHistory(symbol: string, count: number = 100) {
+  public async getHistory(symbol: string, count: number = 100, retryCount = 1): Promise<HistoryPoint[]> {
     try {
       if (this.token && !this.isAuthorized) {
         await this.waitForReady();
@@ -322,10 +329,20 @@ class DerivService {
       const reqId = ++this.reqIdCounter;
       console.log(`Requesting history for ${symbol} (req_id: ${reqId})`);
       
-      const timeout = setTimeout(() => {
+      const timeout = setTimeout(async () => {
         this.off(`req_${reqId}`, listener);
-        reject(new Error(`History request for ${symbol} timed out (req_id: ${reqId})`));
-      }, 25000);
+        if (retryCount > 0) {
+          console.log(`History request for ${symbol} timed out. Retrying... (${retryCount} left)`);
+          try {
+            const result = await this.getHistory(symbol, count, retryCount - 1);
+            resolve(result);
+          } catch (e) {
+            reject(e);
+          }
+        } else {
+          reject(new Error(`History request for ${symbol} timed out (req_id: ${reqId})`));
+        }
+      }, 35000);
 
       const listener = (data: any) => {
         if (data.req_id === reqId) {
@@ -363,7 +380,7 @@ class DerivService {
     });
   }
 
-  public async getCandles(symbol: string, granularity: number = 60, count: number = 100) {
+  public async getCandles(symbol: string, granularity: number = 60, count: number = 100, retryCount = 1): Promise<Candle[]> {
     try {
       if (this.token && !this.isAuthorized) {
         await this.waitForReady();
@@ -376,10 +393,20 @@ class DerivService {
       const reqId = ++this.reqIdCounter;
       console.log(`Requesting candles for ${symbol} (req_id: ${reqId})`);
       
-      const timeout = setTimeout(() => {
+      const timeout = setTimeout(async () => {
         this.off(`req_${reqId}`, listener);
-        reject(new Error(`Candles request for ${symbol} timed out (req_id: ${reqId})`));
-      }, 25000);
+        if (retryCount > 0) {
+          console.log(`Candles request for ${symbol} timed out. Retrying... (${retryCount} left)`);
+          try {
+            const result = await this.getCandles(symbol, granularity, count, retryCount - 1);
+            resolve(result);
+          } catch (e) {
+            reject(e);
+          }
+        } else {
+          reject(new Error(`Candles request for ${symbol} timed out (req_id: ${reqId})`));
+        }
+      }, 35000);
 
       const listener = (data: any) => {
         if (data.req_id === reqId) {

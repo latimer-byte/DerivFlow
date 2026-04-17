@@ -62,7 +62,8 @@ export function Auth({ onLogin }: AuthProps) {
         // Fallback for demo if no user saved
         const demoUser = {
           name: 'Biometric User',
-          id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+          id: `CR8842`,
+          uid: 'mock_biometric_user',
           email: 'biometric@example.com'
         };
         onLogin(demoUser);
@@ -80,9 +81,14 @@ export function Auth({ onLogin }: AuthProps) {
     
     // Simulate API call
     setTimeout(() => {
+      // Create a stable UID and ID from email for mock persistence
+      const mockUid = email ? `mock_${btoa(email).substring(0, 12)}` : `mock_${Math.random().toString(36).substring(2, 10)}`;
+      const stableId = email ? `CR${(email.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 9000) + 1000}` : `CR${Math.floor(Math.random() * 9000 + 1000)}`;
+
       const newUser = {
         name: isLogin ? (email.split('@')[0] || 'User') : name,
-        id: `CR${Math.floor(Math.random() * 9000 + 1000)}-${Math.random().toString(36).substring(2, 4).toUpperCase()}`,
+        id: stableId,
+        uid: mockUid,
         email: email
       };
       

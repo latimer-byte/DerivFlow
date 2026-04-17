@@ -28,7 +28,6 @@ export default function App() {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [isReady, setIsReady] = useState(false);
-  const [balance, setBalance] = useState(() => StorageService.getBalance());
   const [user, setUser] = useState<any>(() => {
     try {
       const saved = localStorage.getItem('tradepulse_user');
@@ -38,9 +37,12 @@ export default function App() {
       return null;
     }
   });
+
+  // Pull initial data for the user if they were already logged in
+  const [balance, setBalance] = useState(() => StorageService.getBalance(user?.uid));
   const [activeTrades, setActiveTrades] = useState<any[]>([]);
-  const [tradeHistory, setTradeHistory] = useState<any[]>(() => StorageService.getTrades());
-  const [transactions, setTransactions] = useState<any[]>(() => StorageService.getTransactions());
+  const [tradeHistory, setTradeHistory] = useState<any[]>(() => StorageService.getTrades(user?.uid));
+  const [transactions, setTransactions] = useState<any[]>(() => StorageService.getTransactions(user?.uid));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [timeframe, setTimeframe] = useState('1M');
@@ -75,7 +77,13 @@ export default function App() {
 
   // Sync state with local storage AND cloud when user UID is available
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      // If no user, reset to generic defaults to avoid showing previous user's data
+      setBalance(StorageService.getBalance());
+      setTradeHistory(StorageService.getTrades());
+      setTransactions(StorageService.getTransactions());
+      return;
+    }
 
     // 1. Initial Load from Local Storage (Fast path)
     setBalance(StorageService.getBalance(user.uid));
@@ -83,11 +91,13 @@ export default function App() {
     setTransactions(StorageService.getTransactions(user.uid));
 
     // 2. Real-time Cloud Sync (Consistency path)
-    if (!auth.isMock) {
-      console.log('Initializing Mock Real-time Sync for UID:', user.uid);
+    // Only set up listeners if we have a real Firebase UID and aren't in pure mock mode
+    if (!auth.isMock || user.authType === 'firebase') {
+      console.log('Initializing Real-time Sync for UID:', user.uid);
       
       // Simulate real-time updates via window events (works across tabs in same browser)
       const handleStorageChange = (e: StorageEvent) => {
+        if (!user.uid) return;
         if (e.key === `tradepulse_balance_v1_${user.uid}`) {
           setBalance(StorageService.getBalance(user.uid));
         }
