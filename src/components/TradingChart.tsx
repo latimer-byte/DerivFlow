@@ -22,12 +22,27 @@ interface TradingChartProps {
   data: { epoch: number; quote: number }[];
   candles?: { epoch: number; open: number; high: number; low: number; close: number }[];
   symbol: string;
+  timeframe: string;
+  onTimeframeChange: (t: string) => void;
 }
 
-export function TradingChart({ data, candles, symbol }: TradingChartProps) {
+export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChange }: TradingChartProps) {
   const [chartType, setChartType] = useState<'area' | 'candle'>('candle');
   const [showSMA, setShowSMA] = useState(false);
   const [showRSI, setShowRSI] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    }
+  };
 
   const chartData = useMemo(() => {
     const calculateRSI = (prices: number[], period = 14) => {
@@ -154,7 +169,16 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
 
           <div className="hidden sm:flex gap-1">
             {['1M', '5M', '15M', '1H', '1D'].map((t) => (
-              <button key={t} className="px-2 py-1 text-[10px] font-bold rounded text-text-muted hover:text-text-primary hover:bg-secondary/20 transition-all">
+              <button 
+                key={t} 
+                onClick={() => onTimeframeChange(t)}
+                className={cn(
+                  "px-2 py-1 text-[10px] font-bold rounded transition-all",
+                  timeframe === t 
+                    ? "bg-brand/10 text-brand border border-brand/20" 
+                    : "text-text-muted hover:text-text-primary hover:bg-secondary/20"
+                )}
+              >
                 {t}
               </button>
             ))}
@@ -182,7 +206,13 @@ export function TradingChart({ data, candles, symbol }: TradingChartProps) {
             <Activity className="w-3 h-3" />
             <span className="hidden xs:inline">SMA</span>
           </button>
-          <button className="p-1.5 text-text-muted hover:text-text-primary transition-colors hidden sm:block">
+          <button 
+            onClick={toggleFullscreen}
+            className={cn(
+              "p-1.5 transition-colors hidden sm:block",
+              isFullscreen ? "text-brand" : "text-text-muted hover:text-text-primary"
+            )}
+          >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
           <button className="p-1.5 text-text-muted hover:text-text-primary transition-colors">

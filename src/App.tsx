@@ -43,6 +43,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<any[]>(() => StorageService.getTransactions());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [timeframe, setTimeframe] = useState('1M');
   const [notification, setNotification] = useState<{ type: 'win' | 'loss', amount: number } | null>(null);
 
   // Firebase Auth Listener
@@ -81,9 +82,11 @@ export default function App() {
           const result = win ? 'win' : 'loss';
           const payout = win ? trade.amount * 1.95 : trade.amount * 0.5;
 
-          if (payout > 0) {
-            setBalance(prev => prev + payout);
-          }
+          const currentBalance = StorageService.getBalance();
+          const newBalance = currentBalance + payout;
+          
+          setBalance(newBalance);
+          StorageService.saveBalance(newBalance);
 
           const completedTrade = {
             ...trade,
@@ -115,7 +118,6 @@ export default function App() {
           // Update lists
           setTradeHistory(StorageService.getTrades());
           setTransactions(StorageService.getTransactions());
-          StorageService.saveBalance(balance + payout);
 
           // Save to Firestore (optional/quiet, since user declined)
           try {
@@ -261,12 +263,21 @@ export default function App() {
     const initMarket = async () => {
       setIsReady(false);
       try {
-        console.log(`Initializing market for ${selectedSymbol}...`);
+        console.log(`Initializing market for ${selectedSymbol} with ${timeframe} candles...`);
         
+        const granularityMap: Record<string, number> = {
+          '1M': 60,
+          '5M': 300,
+          '15M': 900,
+          '1H': 3600,
+          '1D': 86400
+        };
+        const granularity = granularityMap[timeframe] || 60;
+
         // Try to get history and candles
         const [initialHistory, initialCandles] = await Promise.all([
           derivApi.getHistory(selectedSymbol, 100),
-          derivApi.getCandles(selectedSymbol, 60, 100)
+          derivApi.getCandles(selectedSymbol, granularity, 100)
         ]);
 
         setHistory(initialHistory);
@@ -287,7 +298,15 @@ export default function App() {
           setCandles(prev => {
             if (prev.length === 0) return prev;
             const lastCandle = prev[prev.length - 1];
-            const candleInterval = 60; // 1 minute
+            
+            const granularityMap: Record<string, number> = {
+              '1M': 60,
+              '5M': 300,
+              '15M': 900,
+              '1H': 3600,
+              '1D': 86400
+            };
+            const candleInterval = granularityMap[timeframe] || 60;
             
             if (tick.epoch < lastCandle.epoch + candleInterval) {
               // Update current candle
@@ -337,7 +356,7 @@ export default function App() {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [selectedSymbol]);
+  }, [selectedSymbol, timeframe]);
 
   const handleLogout = async () => {
     console.log('Logging out...');
@@ -379,7 +398,13 @@ export default function App() {
         {/* Main Chart Area */}
         <div className="flex-1 flex flex-col min-w-0 border-b lg:border-b-0 lg:border-r border-border">
           <div className="h-[300px] sm:h-[400px] lg:flex-1 min-h-0">
-            <TradingChart data={history} candles={candles} symbol={selectedSymbol} />
+            <TradingChart 
+              data={history} 
+              candles={candles} 
+              symbol={selectedSymbol}
+              timeframe={timeframe}
+              onTimeframeChange={setTimeframe}
+            />
           </div>
           <div className="hidden sm:block">
             <BottomPanel activeTrades={activeTrades} tradeHistory={tradeHistory} user={user} />
@@ -448,6 +473,11 @@ export default function App() {
               balance={balance} 
               setBalance={setBalance} 
               transactions={transactions}
+              onTransaction={(tx) => {
+                StorageService.addTransaction(tx);
+                StorageService.saveBalance(tx.balance);
+                setTransactions(StorageService.getTransactions());
+              }}
             />
           </div>
         );

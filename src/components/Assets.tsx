@@ -9,10 +9,12 @@ interface AssetsProps {
   balance: number;
   setBalance: (balance: number) => void;
   transactions: any[];
+  onTransaction?: (tx: any) => void;
 }
 
-export function Assets({ user, balance, setBalance, transactions }: AssetsProps) {
+export function Assets({ user, balance, setBalance, transactions, onTransaction }: AssetsProps) {
   const [activeAction, setActiveAction] = useState<'deposit' | 'withdraw' | 'overview'>('overview');
+  const [selectedMethod, setSelectedMethod] = useState<'Card' | 'Bank' | 'Crypto'>('Card');
   const [amount, setAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -33,21 +35,31 @@ export function Assets({ user, balance, setBalance, transactions }: AssetsProps)
       const txData = {
         userId: user.uid,
         type: activeAction,
-        label: `${activeAction.charAt(0).toUpperCase() + activeAction.slice(1)} via ${activeAction === 'deposit' ? 'Direct Payment' : 'Bank Transfer'}`,
+        label: `${activeAction.charAt(0).toUpperCase() + activeAction.slice(1)} via ${selectedMethod}`,
         amount: val,
         displayAmount: `${activeAction === 'deposit' ? '+' : '-'}$${val.toFixed(2)}`,
         status: 'COMPLETED',
-        timestamp: Date.now(),
-        createdAt: serverTimestamp()
+        timestamp: Date.now()
       };
 
-      await addDoc(collection(db, 'transactions'), txData);
+      // Notify parent for persistence
+      onTransaction?.({ ...txData, balance: newBalance });
       
       setBalance(newBalance);
       setAmount('');
       setActiveAction('overview');
+
+      // Firebase update (optional)
+      try {
+        await addDoc(collection(db, 'transactions'), {
+          ...txData,
+          createdAt: serverTimestamp()
+        });
+      } catch (e) {
+        console.warn('Firebase transaction failed (expected if offline/mock):', e);
+      }
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'transactions');
+      console.error('Transaction processing error:', error);
     } finally {
       setIsProcessing(false);
     }
@@ -161,9 +173,24 @@ export function Assets({ user, balance, setBalance, transactions }: AssetsProps)
             <div>
               <label className="text-[10px] md:text-xs font-bold text-text-muted uppercase tracking-widest mb-3 block">Select Method</label>
               <div className="grid grid-cols-3 gap-2 md:gap-4">
-                <MethodButton icon={CreditCard} label="Card" active />
-                <MethodButton icon={Landmark} label="Bank" />
-                <MethodButton icon={Coins} label="Crypto" />
+                <MethodButton 
+                  icon={CreditCard} 
+                  label="Card" 
+                  active={selectedMethod === 'Card'} 
+                  onClick={() => setSelectedMethod('Card')}
+                />
+                <MethodButton 
+                  icon={Landmark} 
+                  label="Bank" 
+                  active={selectedMethod === 'Bank'} 
+                  onClick={() => setSelectedMethod('Bank')}
+                />
+                <MethodButton 
+                  icon={Coins} 
+                  label="Crypto" 
+                  active={selectedMethod === 'Crypto'} 
+                  onClick={() => setSelectedMethod('Crypto')}
+                />
               </div>
             </div>
 
@@ -232,14 +259,17 @@ function TransactionItem({ type, label, amount, date }: any) {
   );
 }
 
-function MethodButton({ icon: Icon, label, active }: any) {
+function MethodButton({ icon: Icon, label, active, onClick }: any) {
   return (
-    <button className={cn(
-      "flex flex-col items-center justify-center gap-2 md:gap-3 p-3 md:p-6 rounded-2xl border transition-all",
-      active 
-        ? "bg-brand/10 border-brand text-brand" 
-        : "bg-secondary/30 border-border text-muted-foreground hover:bg-secondary/50"
-    )}>
+    <button 
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-center justify-center gap-2 md:gap-3 p-3 md:p-6 rounded-2xl border transition-all",
+        active 
+          ? "bg-brand/10 border-brand text-brand" 
+          : "bg-secondary/30 border-border text-muted-foreground hover:bg-secondary/50"
+      )}
+    >
       <Icon className="w-5 h-5 md:w-6 md:h-6" />
       <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest whitespace-nowrap">{label}</span>
     </button>
