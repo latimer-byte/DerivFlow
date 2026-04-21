@@ -351,9 +351,11 @@ export default function App() {
   // Initialize market data
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    let retryTimeout: NodeJS.Timeout | undefined;
     let isActive = true;
 
     const initMarket = async () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
       setIsReady(false);
       try {
         console.log(`Initializing market for ${selectedSymbol} with ${timeframe} candles...`);
@@ -430,19 +432,11 @@ export default function App() {
         if (!isActive) return;
         console.error('Failed to initialize market:', error);
         
-        // If it's a timeout or connection error, we might want to retry once
-        setTimeout(() => {
+        // If it's a timeout or connection error, retry in 5 seconds
+        retryTimeout = setTimeout(() => {
           if (!isActive || isReady) return;
           console.log('Retrying market initialization...');
-          // Fallback to ensure UI isn't stuck if retry also fails
-          setIsReady(true);
-          if (history.length === 0) {
-            // Provide a base price based on the symbol if possible
-            const basePrice = selectedSymbol.startsWith('R_') ? 1000 : 1.0;
-            const now = Math.floor(Date.now() / 1000);
-            setHistory([{ epoch: now, quote: basePrice }]);
-            setCandles([{ epoch: now, open: basePrice, high: basePrice * 1.01, low: basePrice * 0.99, close: basePrice }]);
-          }
+          initMarket();
         }, 5000);
       }
     };
@@ -452,6 +446,7 @@ export default function App() {
     return () => {
       isActive = false;
       if (unsubscribe) unsubscribe();
+      if (retryTimeout) clearTimeout(retryTimeout);
     };
   }, [selectedSymbol, timeframe]);
 
