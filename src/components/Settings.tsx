@@ -26,19 +26,54 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
     setIsDarkMode(!isDarkMode);
   };
 
-  const handleConnectDeriv = () => {
-    if (!apiKey) return;
+  const handleConnectDeriv = async () => {
+    if (!apiKey) {
+      // If no API Key manually entered, try the OAuth flow
+      setIsConnecting(true);
+      try {
+        const response = await fetch('/api/auth/url');
+        if (response.ok) {
+          const { url } = await response.json();
+          const width = 600;
+          const height = 700;
+          const left = window.screenX + (window.outerWidth - width) / 2;
+          const top = window.screenY + (window.outerHeight - height) / 2;
+          
+          window.open(
+            url,
+            'DerivAuth',
+            `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
+          );
+        }
+      } catch (error) {
+        console.error("OAuth initiation failed:", error);
+      } finally {
+        setIsConnecting(false);
+      }
+      return;
+    };
+
+    // Validate App ID - must be numeric
+    const cleanAppId = appId.trim();
+    if (cleanAppId && !/^\d+$/.test(cleanAppId)) {
+      alert("Error: App ID must be a numeric value (e.g. 1089). The 'pat_...' string you provided looks like an API Token, not an App ID.");
+      return;
+    }
+
     setIsConnecting(true);
     
     try {
       // Set App ID if it changed
-      derivApi.setAppId(appId);
+      derivApi.setAppId(cleanAppId || '1089');
       
       // Authorize with new token
-      derivApi.authorize(apiKey);
+      derivApi.authorize(apiKey.trim());
       
-      // Update local user state if needed (this depends on how App.tsx handles user)
-      // For now, derivApi.authorize handles the localStorage part for the token
+      // Refresh user data with new token
+      if (user) {
+        const updatedUser = { ...user, derivToken: apiKey.trim() };
+        localStorage.setItem('tradepulse_user', JSON.stringify(updatedUser));
+      }
       
       setTimeout(() => {
         setIsConnecting(false);
@@ -50,6 +85,25 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
       setConnectionStatus('error');
     }
   };
+
+  // Add message listener to Settings as well for OAuth completion
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        const { token } = event.data;
+        setApiKey(token);
+        setConnectionStatus('connected');
+        
+        // Trigger actual connection
+        derivApi.authorize(token);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const redirectUri = window.location.origin;
 
@@ -277,14 +331,20 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
 
                 <button 
                   onClick={handleConnectDeriv}
-                  disabled={isConnecting || !apiKey}
+                  disabled={isConnecting}
                   className={cn(
                     "w-full py-5 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50",
                     connectionStatus === 'connected' ? "bg-emerald-500 text-white shadow-emerald-500/20" : "bg-brand text-white shadow-brand/20 hover:bg-brand-hover"
                   )}
                 >
-                  {isConnecting ? <RefreshCw className="w-6 h-6 animate-spin" /> : (connectionStatus === 'connected' ? <CheckCircle2 className="w-6 h-6" /> : <Zap className="w-6 h-6" />)}
-                  {isConnecting ? 'Connecting to Deriv...' : (connectionStatus === 'connected' ? 'Connected & Live' : 'Connect & Launch App')}
+                  {isConnecting ? (
+                    <RefreshCw className="w-6 h-6 animate-spin" />
+                  ) : (
+                    connectionStatus === 'connected' ? <CheckCircle2 className="w-6 h-6" /> : <Zap className="w-6 h-6" />
+                  )}
+                  {isConnecting ? 'Connecting...' : (
+                    connectionStatus === 'connected' ? 'Connected & Live' : (apiKey ? 'Authorize Manual Token' : 'Connect with OAuth 2.0')
+                  )}
                 </button>
               </div>
             </div>

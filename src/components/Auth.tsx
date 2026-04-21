@@ -3,6 +3,7 @@ import { Zap, Mail, Lock, User, ArrowRight, Github, Chrome, Fingerprint, Eye, Ey
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
 import { signInWithGoogle, auth } from '@/lib/firebase';
+import { derivApi } from '@/services/derivApi';
 
 interface AuthProps {
   onLogin: (user: any) => void;
@@ -25,7 +26,7 @@ export function Auth({ onLogin }: AuthProps) {
       // Basic security check: only listen to messages from the same origin
       if (event.origin !== window.location.origin) return;
 
-      if (event.data?.type === 'DERIV_AUTH_SUCCESS') {
+      if (event.data?.type === 'DERIV_AUTH_SUCCESS' || event.data?.type === 'OAUTH_AUTH_SUCCESS') {
         const { token, acct } = event.data;
         const userData = {
           name: acct || 'Deriv Trader',
@@ -35,8 +36,14 @@ export function Auth({ onLogin }: AuthProps) {
           authType: 'deriv',
           derivToken: token
         };
+
+        // Initialize API
+        derivApi.authorize(token);
+        
         localStorage.setItem('tradepulse_user', JSON.stringify(userData));
         onLogin(userData);
+      } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
+        alert(`Authentication Error: ${event.data.error}`);
       }
     };
 
@@ -64,38 +71,56 @@ export function Auth({ onLogin }: AuthProps) {
     }
   };
 
-  const handleDerivLogin = () => {
-    // Priority: Local Storage (manual setting) > Env variable > Default Demo ID
-    const storedAppId = localStorage.getItem('deriv_app_id');
-    const envAppId = import.meta.env.VITE_DERIV_APP_ID;
-    const appId = storedAppId || envAppId || '1089';
-    
-    if (!appId || appId === 'undefined') {
-      console.error("Deriv App ID is missing or invalid");
-      alert("Configuration Error: Deriv App ID is missing. Please enter it in the 'Use API Token' section or Settings if you have one.");
-      return;
-    }
+  const handleDerivLogin = async () => {
+    setLoading(true);
+    try {
+      // Try the new OAuth 2.0 PKCE flow through our backend
+      const response = await fetch('/api/auth/url');
+      if (response.ok) {
+        const { url } = await response.json();
+        
+        const width = 600;
+        const height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        
+        const popup = window.open(
+          url,
+          'DerivAuth',
+          `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
+        );
 
-    const redirectUrl = window.location.origin;
-    console.log(`Initiating Deriv OAuth with App ID: ${appId}, Redirect: ${redirectUrl}`);
-    
-    // Construct URL - brand parameter can sometimes cause issues if not exact
-    const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&redirect_uri=${encodeURIComponent(redirectUrl)}`;
-    
-    // Open in a popup for better iframe compatibility
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    const popup = window.open(
-      derivLoginUrl,
-      'DerivAuth',
-      `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
-    );
-
-    if (!popup) {
-      alert("Popup blocked! Please allow popups for this site.");
+        if (!popup) {
+          alert("Popup blocked! Please allow popups for this site.");
+        }
+      } else {
+        throw new Error('New flow not available');
+      }
+    } catch (err) {
+      console.warn("Falling back to legacy flow:", err);
+      
+      // Priority: Local Storage (manual setting) > Env variable > Default Demo ID
+      const storedAppId = localStorage.getItem('deriv_app_id');
+      
+      // Validate stored App ID (must be numeric)
+      let appId = '1089';
+      if (storedAppId && /^\d+$/.test(storedAppId)) {
+        appId = storedAppId;
+      } else if (import.meta.env.VITE_DERIV_APP_ID && /^\d+$/.test(import.meta.env.VITE_DERIV_APP_ID)) {
+        appId = import.meta.env.VITE_DERIV_APP_ID;
+      }
+      
+      const redirectUrl = window.location.origin;
+      console.log(`Initiating Legacy Deriv OAuth with App ID: ${appId}`);
+      
+      const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&redirect_uri=${encodeURIComponent(redirectUrl)}`;
+      
+      // Open in a popup for better iframe compatibility
+      const width = 600;
+      const height = 700;
+      window.open(derivLoginUrl, 'DerivAuth', `width=${width},height=${height}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -103,21 +128,37 @@ export function Auth({ onLogin }: AuthProps) {
     e.preventDefault();
     if (!manualToken) return;
     
-    setLoading(true);
-    // If an App ID is provided, save it
-    if (manualAppId) {
-      localStorage.setItem('deriv_app_id', manualAppId);
+    // Validate App ID - must be numeric
+    let finalAppId = manualAppId.trim();
+    if (finalAppId && !/^\d+$/.test(finalAppId)) {
+      alert("Error: App ID must be a numeric value (e.g. 1089). The 'pat_...' string you provided is an API Token, not an App ID.");
+      return;
     }
 
-    // Simulate verification or just log in directly if the token format is okay
+    setLoading(true);
+    // If a valid App ID is provided, save it
+    if (finalAppId) {
+      localStorage.setItem('deriv_app_id', finalAppId);
+    } else {
+      localStorage.removeItem('deriv_app_id'); // Revert to default if empty
+    }
+
+    // Use the provided token
+    const tokenToUse = manualToken.trim();
+    localStorage.setItem('deriv_token', tokenToUse);
+    
+    // Initialize API with the new config
+    derivApi.setAppId(finalAppId || '1089');
+    derivApi.authorize(tokenToUse);
+
     setTimeout(() => {
       const userData = {
         name: 'Token Trader',
         id: `TK${Math.floor(Math.random() * 9000 + 1000)}`,
-        email: manualAppId ? `deriv-app-${manualAppId}` : 'token-account',
-        uid: `token_${manualToken.substring(0, 8)}`,
+        email: finalAppId ? `deriv-app-${finalAppId}` : 'token-account',
+        uid: `token_${tokenToUse.substring(0, 8)}`,
         authType: 'token',
-        derivToken: manualToken
+        derivToken: tokenToUse
       };
       localStorage.setItem('tradepulse_user', JSON.stringify(userData));
       onLogin(userData);
