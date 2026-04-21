@@ -16,7 +16,7 @@ export function Auth({ onLogin }: AuthProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [manualToken, setManualToken] = useState('');
+  const [manualToken, setManualToken] = useState('32XhlOqFjz1VagaEisvh8');
   const [manualAppId, setManualAppId] = useState(localStorage.getItem('deriv_app_id') || '333ttXJvMqziMT0ErTbKd');
   const [showManualLogin, setShowManualLogin] = useState(false);
 
@@ -112,7 +112,7 @@ export function Auth({ onLogin }: AuthProps) {
       const redirectUrl = window.location.origin;
       console.log(`Initiating Legacy Deriv OAuth with App ID: ${appId}`);
       
-      const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&redirect_uri=${encodeURIComponent(redirectUrl)}`;
+      const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&brand=deriv&redirect_uri=${encodeURIComponent(redirectUrl)}`;
       
       // Open in a popup for better iframe compatibility
       const width = 600;

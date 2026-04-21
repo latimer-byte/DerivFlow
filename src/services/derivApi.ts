@@ -5,7 +5,11 @@
 
 const DEFAULT_APP_ID = '333ttXJvMqziMT0ErTbKd';
 const getAppId = () => localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || DEFAULT_APP_ID;
-const getWsUrl = () => `wss://ws.binaryws.com/websockets/v3?app_id=${getAppId()}`;
+const getWsUrl = () => {
+  const appId = getAppId();
+  // Using ws.derivws.com which is the modern endpoint, adding branch and language params
+  return `wss://ws.derivws.com/websockets/v3?app_id=${appId}&l=en&brand=deriv`;
+};
 
 export type Tick = {
   symbol: string;
@@ -133,18 +137,25 @@ class DerivService {
       }
     };
 
-    this.socket.onclose = () => {
+    this.socket.onclose = (event) => {
       this.isConnected = false;
       this.isConnecting = false;
       this.isAuthorized = false;
       if (this.pingInterval) clearInterval(this.pingInterval);
       
-      // Fail pending requests on close so they don't wait for timeout
-      console.log(`Connection lost. Failing ${this.pendingRequests.size} pending requests.`);
-      this.pendingRequests.forEach((fail) => fail(new Error('Deriv API connection lost')));
-      this.pendingRequests.clear();
+      // Log more details about the closure
+      console.warn(`Deriv WebSocket Closed. Code: ${event.code}, Reason: ${event.reason || 'None'}`);
 
-      console.log('Deriv WebSocket Disconnected. Reconnecting in 5s...');
+      // Fail pending requests on close so they don't wait for timeout
+      if (this.pendingRequests.size > 0) {
+        console.log(`Failing ${this.pendingRequests.size} pending requests due to connection closure.`);
+        this.pendingRequests.forEach((fail) => fail(new Error('Deriv API connection lost')));
+        this.pendingRequests.clear();
+      }
+
+      this.trigger('connection_lost', event);
+
+      console.log('Reconnecting in 5s...');
       setTimeout(() => this.connect(), 5000);
     };
 
@@ -236,7 +247,7 @@ class DerivService {
     this.token = token;
     localStorage.setItem('deriv_token', token);
     this.isAuthorized = false;
-    this.socket?.send(JSON.stringify({ authorize: token }));
+    this.send({ authorize: token });
   }
 
   public setAppId(appId: string) {
@@ -363,6 +374,7 @@ class DerivService {
         clearTimeout(checkTimeout);
         this.off('authorize', onAuth);
         this.off('ping', onConnect);
+        this.off('connection_lost', onError);
       };
 
       const onAuth = () => {
@@ -375,12 +387,20 @@ class DerivService {
         resolve();
       };
 
+      const onError = () => {
+        cleanup();
+        reject(new Error('Deriv API connection lost during ready wait'));
+      };
+
       this.on('authorize', onAuth);
+      this.on('connection_lost', onError);
 
       if (!this.isConnected) {
         if (!this.token) {
           this.on('ping', onConnect);
           this.send({ ping: 1 });
+        } else if (!this.isConnecting) {
+          this.connect();
         }
       }
     });

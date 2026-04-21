@@ -56,6 +56,9 @@ async function startServer() {
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: clientId,
+      app_id: clientId, // Mandatory for Deriv
+      l: 'en',
+      brand: 'deriv',
       redirect_uri: redirectUri,
       scope: 'trade account_manage',
       state: state,
@@ -63,12 +66,7 @@ async function startServer() {
       code_challenge_method: 'S256',
     });
 
-    // Optional legacy app support
-    if (process.env.VITE_DERIV_APP_ID) {
-      params.append('app_id', process.env.VITE_DERIV_APP_ID);
-    }
-
-    const authUrl = `https://auth.deriv.com/oauth2/auth?${params.toString()}`;
+    const authUrl = `https://oauth.deriv.com/oauth2/authorize?${params.toString()}`;
     res.json({ url: authUrl });
   });
 
@@ -107,12 +105,13 @@ async function startServer() {
 
       console.log(`Exchanging code for token. ClientID: ${clientId}, Redirect: ${redirectUri}`);
 
-      const response = await fetch("https://auth.deriv.com/oauth2/token", {
+      const response = await fetch("https://oauth.deriv.com/oauth2/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           grant_type: "authorization_code",
           client_id: clientId,
+          app_id: clientId,
           code: code as string,
           code_verifier: codeVerifier,
           redirect_uri: redirectUri,

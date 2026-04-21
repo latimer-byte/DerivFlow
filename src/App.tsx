@@ -353,12 +353,14 @@ export default function App() {
     let unsubscribe: (() => void) | undefined;
     let retryTimeout: NodeJS.Timeout | undefined;
     let isActive = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
 
     const initMarket = async () => {
       if (retryTimeout) clearTimeout(retryTimeout);
       setIsReady(false);
       try {
-        console.log(`Initializing market for ${selectedSymbol} with ${timeframe} candles...`);
+        console.log(`Initializing market for ${selectedSymbol} with ${timeframe} (Attempt ${retryCount + 1})...`);
         
         const granularityMap: Record<string, number> = {
           '1M': 60,
@@ -380,34 +382,24 @@ export default function App() {
         setHistory(initialHistory);
         setCandles(initialCandles);
         setIsReady(true);
+        retryCount = 0; // Reset on success
 
         // Subscribe to ticks
         unsubscribe = derivApi.subscribeTicks(selectedSymbol, (tick) => {
           if (!isActive) return;
           setCurrentTick(tick);
           
-          // Update history
           setHistory(prev => {
             const newHistory = [...prev, { epoch: tick.epoch, quote: tick.quote }];
             return newHistory.slice(-100);
           });
 
-          // Update candles
           setCandles(prev => {
             if (prev.length === 0) return prev;
             const lastCandle = prev[prev.length - 1];
-            
-            const granularityMap: Record<string, number> = {
-              '1M': 60,
-              '5M': 300,
-              '15M': 900,
-              '1H': 3600,
-              '1D': 86400
-            };
             const candleInterval = granularityMap[timeframe] || 60;
             
             if (tick.epoch < lastCandle.epoch + candleInterval) {
-              // Update current candle
               const updatedCandle = {
                 ...lastCandle,
                 high: Math.max(lastCandle.high, tick.quote),
@@ -416,7 +408,6 @@ export default function App() {
               };
               return [...prev.slice(0, -1), updatedCandle];
             } else {
-              // Start new candle
               const newCandle = {
                 epoch: Math.floor(tick.epoch / candleInterval) * candleInterval,
                 open: tick.quote,
@@ -432,12 +423,18 @@ export default function App() {
         if (!isActive) return;
         console.error('Failed to initialize market:', error);
         
-        // If it's a timeout or connection error, retry in 5 seconds
-        retryTimeout = setTimeout(() => {
-          if (!isActive || isReady) return;
-          console.log('Retrying market initialization...');
-          initMarket();
-        }, 5000);
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 15000);
+        retryCount++;
+
+        if (retryCount <= MAX_RETRIES) {
+          console.log(`Retrying market initialization in ${delay}ms...`);
+          retryTimeout = setTimeout(() => {
+            if (!isActive || isReady) return;
+            initMarket();
+          }, delay);
+        } else {
+          console.error("Max market retries reached. Please check your connection.");
+        }
       }
     };
 
