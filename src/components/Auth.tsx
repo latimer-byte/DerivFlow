@@ -17,7 +17,7 @@ export function Auth({ onLogin }: AuthProps) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [manualToken, setManualToken] = useState('');
-  const [manualAppId, setManualAppId] = useState(localStorage.getItem('deriv_app_id') || '');
+  const [manualAppId, setManualAppId] = useState(localStorage.getItem('deriv_app_id') || '333ttXJvMqziMT0ErTbKd');
   const [showManualLogin, setShowManualLogin] = useState(false);
 
   // Listen for popup messages
@@ -102,11 +102,10 @@ export function Auth({ onLogin }: AuthProps) {
       // Priority: Local Storage (manual setting) > Env variable > Default Demo ID
       const storedAppId = localStorage.getItem('deriv_app_id');
       
-      // Validate stored App ID (must be numeric)
-      let appId = '1089';
-      if (storedAppId && /^\d+$/.test(storedAppId)) {
+      let appId = '333ttXJvMqziMT0ErTbKd';
+      if (storedAppId) {
         appId = storedAppId;
-      } else if (import.meta.env.VITE_DERIV_APP_ID && /^\d+$/.test(import.meta.env.VITE_DERIV_APP_ID)) {
+      } else if (import.meta.env.VITE_DERIV_APP_ID) {
         appId = import.meta.env.VITE_DERIV_APP_ID;
       }
       
@@ -128,10 +127,10 @@ export function Auth({ onLogin }: AuthProps) {
     e.preventDefault();
     if (!manualToken) return;
     
-    // Validate App ID - must be numeric
+    // Validate App ID - avoid common token mistakes
     let finalAppId = manualAppId.trim();
-    if (finalAppId && !/^\d+$/.test(finalAppId)) {
-      alert("Error: App ID must be a numeric value (e.g. 1089). The 'pat_...' string you provided is an API Token, not an App ID.");
+    if (finalAppId.startsWith('pat_')) {
+      alert("Error: The string starting with 'pat_' is an API Token, not an App ID. Please use your numeric or alphanumeric App ID (e.g. 333ttXJvMqziMT0ErTbKd).");
       return;
     }
 
@@ -148,7 +147,7 @@ export function Auth({ onLogin }: AuthProps) {
     localStorage.setItem('deriv_token', tokenToUse);
     
     // Initialize API with the new config
-    derivApi.setAppId(finalAppId || '1089');
+    derivApi.setAppId(finalAppId || '333ttXJvMqziMT0ErTbKd');
     derivApi.authorize(tokenToUse);
 
     setTimeout(() => {
@@ -339,7 +338,7 @@ export function Auth({ onLogin }: AuthProps) {
                         type="text" 
                         value={manualAppId}
                         onChange={(e) => setManualAppId(e.target.value)}
-                        placeholder="e.g. 1089"
+                        placeholder="e.g. 333ttXJvMqziMT0ErTbKd"
                         className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-4 text-sm text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/20 transition-all font-mono"
                       />
                     </div>

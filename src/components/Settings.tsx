@@ -18,7 +18,7 @@ interface SettingsProps {
 export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: SettingsProps) {
   const [activeSection, setActiveSection] = useState('profile');
   const [apiKey, setApiKey] = useState(user?.derivToken || '');
-  const [appId, setAppId] = useState(localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || '1089');
+  const [appId, setAppId] = useState(localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || '333ttXJvMqziMT0ErTbKd');
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState< 'idle' | 'connected' | 'error'>(user?.derivToken ? 'connected' : 'idle');
   
@@ -55,8 +55,8 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
 
     // Validate App ID - must be numeric
     const cleanAppId = appId.trim();
-    if (cleanAppId && !/^\d+$/.test(cleanAppId)) {
-      alert("Error: App ID must be a numeric value (e.g. 1089). The 'pat_...' string you provided looks like an API Token, not an App ID.");
+    if (cleanAppId.startsWith('pat_')) {
+      alert("Error: The string starting with 'pat_' is an API Token, not an App ID. Please use your numeric or alphanumeric App ID (e.g. 333ttXJvMqziMT0ErTbKd).");
       return;
     }
 
@@ -64,7 +64,7 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
     
     try {
       // Set App ID if it changed
-      derivApi.setAppId(cleanAppId || '1089');
+      derivApi.setAppId(cleanAppId || '333ttXJvMqziMT0ErTbKd');
       
       // Authorize with new token
       derivApi.authorize(apiKey.trim());
@@ -306,7 +306,7 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
                       <Monitor className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                       <input 
                         type="text" 
-                        placeholder="1089"
+                        placeholder="333ttXJvMqziMT0ErTbKd"
                         value={appId}
                         onChange={(e) => setAppId(e.target.value)}
                         className="w-full bg-secondary/50 border border-border rounded-2xl py-3 pl-12 pr-4 text-text-primary focus:outline-none focus:ring-1 focus:ring-brand font-mono text-sm"

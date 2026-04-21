@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import crypto from "crypto";
+import cookieParser from "cookie-parser";
 
 // Load environment variables
 dotenv.config();
@@ -16,14 +17,17 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
-
-  // Store PKCE verifiers in-memory (for demo purposes. In production, use a session store)
-  const pkceStorage = new Map<string, string>();
+  app.use(cookieParser(process.env.SESSION_SECRET || "tradepulse_secret_key_123"));
 
   // API Route to generate OAuth URL
   app.get("/api/auth/url", (req, res) => {
-    const clientId = process.env.VITE_DERIV_CLIENT_ID || "1089"; // Default demo ID
-    const redirectUri = process.env.VITE_DERIV_REDIRECT_URI || `${req.protocol}://${req.get('host')}/auth/callback`;
+    const clientId = process.env.VITE_DERIV_CLIENT_ID || "333ttXJvMqziMT0ErTbKd"; // Default demo ID
+    
+    // Construct redirect URI - prefer VITE_DERIV_REDIRECT_URI, fallback to current host
+    // Important: behind proxies, req.protocol might be 'http' but we need 'https'
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['host'] || req.get('host');
+    const redirectUri = process.env.VITE_DERIV_REDIRECT_URI || `${protocol}://${host}/auth/callback`;
     
     // 1. Generate PKCE code_verifier
     const codeVerifier = crypto.randomBytes(32).toString('base64url');
@@ -37,8 +41,17 @@ async function startServer() {
     // 3. Generate state
     const state = crypto.randomBytes(16).toString('hex');
     
-    // Store verifier and state tied to the state
-    pkceStorage.set(state, codeVerifier);
+    // Store verifier and state in signed cookies (survives server restarts)
+    const cookieOptions = {
+      maxAge: 15 * 60 * 1000, // 15 minutes
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none' as const,
+      signed: true
+    };
+
+    res.cookie('pkce_verifier', codeVerifier, cookieOptions);
+    res.cookie('oauth_state', state, cookieOptions);
 
     const params = new URLSearchParams({
       response_type: 'code',
@@ -76,15 +89,23 @@ async function startServer() {
       `);
     }
 
-    const codeVerifier = pkceStorage.get(state as string);
-    if (!codeVerifier) {
-      return res.status(400).send("Invalid state or PKCE verifier missing");
+    // Retrieve from signed cookies
+    const codeVerifier = req.signedCookies.pkce_verifier;
+    const storedState = req.signedCookies.oauth_state;
+
+    if (!codeVerifier || !storedState || state !== storedState) {
+      console.error("Auth state mismatch or PKCE verifier missing in cookies");
+      return res.status(400).send("Authentication session expired or invalid state. Please try again.");
     }
 
     // Exchange code for token
     try {
-      const clientId = process.env.VITE_DERIV_CLIENT_ID || "1089";
-      const redirectUri = process.env.VITE_DERIV_REDIRECT_URI || `${req.protocol}://${req.get('host')}/auth/callback`;
+      const clientId = process.env.VITE_DERIV_CLIENT_ID || "333ttXJvMqziMT0ErTbKd";
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers['host'] || req.get('host');
+      const redirectUri = process.env.VITE_DERIV_REDIRECT_URI || `${protocol}://${host}/auth/callback`;
+
+      console.log(`Exchanging code for token. ClientID: ${clientId}, Redirect: ${redirectUri}`);
 
       const response = await fetch("https://auth.deriv.com/oauth2/token", {
         method: "POST",
@@ -100,8 +121,9 @@ async function startServer() {
 
       const data = await response.json();
       
-      // Clean up storage
-      pkceStorage.delete(state as string);
+      // Clear cookies
+      res.clearCookie('pkce_verifier');
+      res.clearCookie('oauth_state');
 
       if (data.error) {
         throw new Error(data.error_description || data.error);

@@ -3,7 +3,7 @@
  * Handles WebSocket connection to Deriv API
  */
 
-const DEFAULT_APP_ID = '1089';
+const DEFAULT_APP_ID = '333ttXJvMqziMT0ErTbKd';
 const getAppId = () => localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || DEFAULT_APP_ID;
 const getWsUrl = () => `wss://ws.binaryws.com/websockets/v3?app_id=${getAppId()}`;
 
