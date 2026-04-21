@@ -8,6 +8,7 @@ interface SettingsProps {
     name: string;
     id: string;
     email: string;
+    derivToken?: string;
   };
   onLogout: () => void;
   isDarkMode: boolean;
@@ -16,9 +17,10 @@ interface SettingsProps {
 
 export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: SettingsProps) {
   const [activeSection, setActiveSection] = useState('profile');
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(user?.derivToken || '');
+  const [appId, setAppId] = useState(localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || '1089');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connected' | 'error'>('idle');
+  const [connectionStatus, setConnectionStatus] = useState< 'idle' | 'connected' | 'error'>(user?.derivToken ? 'connected' : 'idle');
   
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
@@ -28,13 +30,28 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
     if (!apiKey) return;
     setIsConnecting(true);
     
-    // Simulate API Key validation and connection
-    setTimeout(() => {
+    try {
+      // Set App ID if it changed
+      derivApi.setAppId(appId);
+      
+      // Authorize with new token
+      derivApi.authorize(apiKey);
+      
+      // Update local user state if needed (this depends on how App.tsx handles user)
+      // For now, derivApi.authorize handles the localStorage part for the token
+      
+      setTimeout(() => {
+        setIsConnecting(false);
+        setConnectionStatus('connected');
+      }, 1000);
+    } catch (error) {
+      console.error(error);
       setIsConnecting(false);
-      setConnectionStatus('connected');
-      alert('Deriv API Key connected successfully! Your app is now live on Deriv.');
-    }, 2000);
+      setConnectionStatus('error');
+    }
   };
+
+  const redirectUri = window.location.origin;
 
   const [viewMode, setViewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
 
@@ -190,38 +207,71 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
               </div>
 
               <div className="space-y-6">
-                <div className="bg-secondary/30 border border-border rounded-2xl p-4">
-                  <h5 className="text-sm font-bold text-text-primary mb-2 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    How to get your API Key:
-                  </h5>
-                  <ol className="text-xs text-text-muted space-y-2 list-decimal ml-4">
-                    <li>Log in to your Deriv account.</li>
-                    <li>Go to Settings {'>'} API Token.</li>
-                    <li>Create a new token with 'Read' and 'Trade' scopes.</li>
-                    <li>Copy the token and paste it below.</li>
-                  </ol>
-                  <a 
-                    href="https://app.deriv.com/account/api-token" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-2 text-xs text-brand font-bold hover:underline"
-                  >
-                    Go to Deriv API Settings <ExternalLink className="w-3 h-3" />
-                  </a>
+                <div className="bg-secondary/30 border border-border rounded-2xl p-4 space-y-4">
+                  <div>
+                    <h5 className="text-sm font-bold text-text-primary mb-2 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      OAuth Redirect URL:
+                    </h5>
+                    <div className="flex items-center gap-2 bg-background p-2 rounded-lg border border-border">
+                      <code className="text-[10px] text-brand font-mono truncate flex-1">{redirectUri}</code>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(redirectUri);
+                          alert('URL copied to clipboard!');
+                        }}
+                        className="p-1 hover:bg-secondary rounded text-text-muted"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-text-muted mt-2 uppercase font-bold tracking-widest">Register this URL in your Deriv Dashboard to enable OAuth login.</p>
+                  </div>
+
+                  <div>
+                    <h5 className="text-sm font-bold text-text-primary mb-2">How to get your API Token:</h5>
+                    <ol className="text-xs text-text-muted space-y-1 list-decimal ml-4">
+                      <li>Log in to Deriv account {'>'} Settings {'>'} API Token.</li>
+                      <li>Create a token with 'Read' and 'Trade' scopes.</li>
+                    </ol>
+                    <a 
+                      href="https://app.deriv.com/account/api-token" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center gap-2 text-xs text-brand font-bold hover:underline"
+                    >
+                      Deriv Token Settings <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-text-muted uppercase tracking-widest ml-1">API Token</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
-                    <input 
-                      type="password" 
-                      placeholder="Paste your Deriv API Token here..."
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      className="w-full bg-secondary/50 border border-border rounded-2xl py-4 pl-12 pr-4 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all font-mono"
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest ml-1">App ID</label>
+                    <div className="relative">
+                      <Monitor className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                      <input 
+                        type="text" 
+                        placeholder="1089"
+                        value={appId}
+                        onChange={(e) => setAppId(e.target.value)}
+                        className="w-full bg-secondary/50 border border-border rounded-2xl py-3 pl-12 pr-4 text-text-primary focus:outline-none focus:ring-1 focus:ring-brand font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest ml-1">API Token</label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                      <input 
+                        type="password" 
+                        placeholder="Paste Token..."
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        className="w-full bg-secondary/50 border border-border rounded-2xl py-3 pl-12 pr-4 text-text-primary focus:outline-none focus:ring-1 focus:ring-brand font-mono text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
 

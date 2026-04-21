@@ -303,6 +303,13 @@ export default function App() {
     if (token) {
       console.log('Deriv OAuth callback detected');
       
+      // If we are in a popup, send the message to the opener and close
+      if (window.opener && window.opener !== window) {
+        window.opener.postMessage({ type: 'DERIV_AUTH_SUCCESS', token, acct }, window.location.origin);
+        window.close();
+        return;
+      }
+      
       // Silent anonymous sign-in to Firebase to enable Firestore for Deriv users
       const initFirebaseForDeriv = async () => {
         try {
@@ -469,6 +476,9 @@ export default function App() {
       <ErrorBoundary>
         <Auth onLogin={(u) => {
           setUser(u);
+          if (u.derivToken) {
+            derivApi.authorize(u.derivToken);
+          }
           setActiveTab('dashboard');
         }} />
       </ErrorBoundary>
