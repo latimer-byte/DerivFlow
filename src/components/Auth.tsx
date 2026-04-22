@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Zap, Mail, Lock, User, ArrowRight, Github, Chrome, Fingerprint, Eye, EyeOff, Key, Monitor } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
-import { signInWithGoogle, auth } from '../lib/firebase';
-import { derivApi } from '../services/derivApi';
+import { signInWithGoogle, auth } from '@/lib/firebase';
+import { derivApi } from '@/services/derivApi';
 
 interface AuthProps {
   onLogin: (user: any) => void;

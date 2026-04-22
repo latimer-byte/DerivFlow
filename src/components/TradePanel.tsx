@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Clock, DollarSign, ChevronRight, Info, RefreshCw, Zap } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 
 import { AISentiment } from './AISentiment';
 

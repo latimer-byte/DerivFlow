@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Bell, User, ChevronDown, Menu, Globe, Shield, HelpCircle, LogOut, Settings, Wallet, Maximize2, Minimize2 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface HeaderProps {

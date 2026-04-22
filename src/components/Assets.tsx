@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Wallet, ArrowUpRight, ArrowDownLeft, CreditCard, Landmark, Coins, History, ShieldCheck, RefreshCw } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { cn } from '@/lib/utils';
+import { db, handleFirestoreError, OperationType } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AssetsProps {

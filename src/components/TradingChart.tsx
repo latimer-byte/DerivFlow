@@ -16,7 +16,7 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { Settings2, Activity, Eye, EyeOff, Maximize2 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 
 interface TradingChartProps {
   data: { epoch: number; quote: number }[];

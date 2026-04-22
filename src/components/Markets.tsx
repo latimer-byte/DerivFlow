@@ -1,6 +1,6 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Star, Search, Filter } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 
 const allMarkets = [
   // Derived Indices

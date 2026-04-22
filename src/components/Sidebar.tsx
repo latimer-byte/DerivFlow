@@ -1,6 +1,6 @@
 import React from 'react';
 import { LayoutDashboard, BarChart3, Wallet, Settings, History, Zap, MessageSquareCode, Star, TrendingUp, TrendingDown, X } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', id: 'dashboard' },
