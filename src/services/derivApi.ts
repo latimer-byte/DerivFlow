@@ -39,7 +39,7 @@ class DerivService {
   private messageQueue: any[] = [];
   private pingInterval: any = null;
   private activeSubscriptions: Map<string, string> = new Map(); // symbol -> subscriptionId
-  private subscriptionCounts: Map<string, number> = new Map(); // symbol -> count
+  private subscriptionCallbacks: Map<string, Set<(tick: Tick) => void>> = new Map(); // symbol -> callbacks
   private reqIdCounter = 0;
   private token: string | null = localStorage.getItem('deriv_token');
   private isAuthorized = false;
@@ -62,7 +62,7 @@ class DerivService {
       this.socket.onmessage = null;
       this.socket.onclose = null;
       this.socket.onerror = null;
-      this.socket.close();
+      try { this.socket.close(); } catch (e) {}
     }
 
     this.socket = new WebSocket(wsUrl);
@@ -72,6 +72,15 @@ class DerivService {
       this.isConnecting = false;
       console.log('Deriv WebSocket Connected');
       
+      // Resubscribe to active symbols on reconnection
+      this.activeSubscriptions.clear(); // Clear old IDs, they are invalid now
+      this.subscriptionCallbacks.forEach((callbacks, symbol) => {
+        if (callbacks.size > 0) {
+          console.log(`Re-subscribing to ${symbol} after reconnection`);
+          this.send({ ticks: symbol, subscribe: 1, req_id: ++this.reqIdCounter });
+        }
+      });
+
       // Authorize if token is available
       if (this.token) {
         this.authorize(this.token);
@@ -93,12 +102,12 @@ class DerivService {
 
         if (data.error) {
           if (data.error.code === 'AlreadySubscribed') {
+            // Already subscribed is fine, we just want the ticks
             console.warn(`Deriv API: Already subscribed to ${data.error.details?.symbol || 'symbol'}`);
           } else {
             console.error(`Deriv API Error (${msgType}):`, data.error.message);
             // If authorization failed, we must unblock anyone waiting
             if (msgType === 'authorize') {
-              console.warn('Deriv API: Authorization failed. Processing queue anyway...');
               this.isAuthorized = false;
               this.processQueue();
               this.trigger('authorize', data);
@@ -107,7 +116,6 @@ class DerivService {
           
           if (reqId !== undefined) {
             this.trigger(`req_${reqId}`, data);
-            this.trigger(`${msgType}_${reqId}`, data);
           }
           return;
         }
@@ -122,15 +130,24 @@ class DerivService {
           this.activeSubscriptions.set(data.tick.symbol, data.subscription.id);
         }
         
+        // Handle tick data
+        if (msgType === 'tick' && data.tick) {
+          const callbacks = this.subscriptionCallbacks.get(data.tick.symbol);
+          if (callbacks) {
+            const tick: Tick = {
+              symbol: data.tick.symbol,
+              quote: data.tick.quote,
+              epoch: data.tick.epoch,
+              id: data.tick.id,
+            };
+            callbacks.forEach(cb => cb(tick));
+          }
+        }
+
         this.trigger(msgType, data);
         
         if (reqId !== undefined) {
           this.trigger(`req_${reqId}`, data);
-          this.trigger(`${msgType}_${reqId}`, data);
-        }
-        
-        if (data.subscription) {
-          this.trigger(`sub_${data.subscription.id}`, data);
         }
       } catch (e) {
         console.error('Failed to parse Deriv message:', e);
@@ -143,20 +160,17 @@ class DerivService {
       this.isAuthorized = false;
       if (this.pingInterval) clearInterval(this.pingInterval);
       
-      // Log more details about the closure
       console.warn(`Deriv WebSocket Closed. Code: ${event.code}, Reason: ${event.reason || 'None'}`);
 
-      // Fail pending requests on close so they don't wait for timeout
       if (this.pendingRequests.size > 0) {
-        console.log(`Failing ${this.pendingRequests.size} pending requests due to connection closure.`);
         this.pendingRequests.forEach((fail) => fail(new Error('Deriv API connection lost')));
         this.pendingRequests.clear();
       }
 
       this.trigger('connection_lost', event);
 
-      console.log('Reconnecting in 5s...');
-      setTimeout(() => this.connect(), 5000);
+      console.log('Reconnecting in 3s...');
+      setTimeout(() => this.connect(), 3000);
     };
 
     this.socket.onerror = (error) => {
@@ -232,8 +246,11 @@ class DerivService {
 
   public send(data: any) {
     if (this.isConnected && this.socket?.readyState === WebSocket.OPEN) {
-      // If it's not an authorize request and we have a token but aren't authorized yet, queue it
-      if (data.authorize === undefined && this.token && !this.isAuthorized) {
+      // If we have a token and aren't authorized yet, only allow certain messages
+      const isAuthRequest = data.authorize !== undefined;
+      const isPing = data.ping !== undefined;
+      
+      if (!isAuthRequest && !isPing && this.token && !this.isAuthorized) {
         this.messageQueue.push(data);
       } else {
         this.socket.send(JSON.stringify(data));
@@ -298,64 +315,52 @@ class DerivService {
   }
 
   public subscribeTicks(symbol: string, callback: (tick: Tick) => void) {
-    // If not connected, start a simulator as fallback
     let simulatorInterval: any = null;
-    if (!this.isConnected) {
+    const isMockMode = !this.isConnected && !this.isConnecting && !this.token;
+
+    if (isMockMode) {
       simulatorInterval = this.simulateTicks(symbol, callback);
     }
 
-    const currentCount = this.subscriptionCounts.get(symbol) || 0;
-    this.subscriptionCounts.set(symbol, currentCount + 1);
-
-    const reqId = ++this.reqIdCounter;
+    if (!this.subscriptionCallbacks.has(symbol)) {
+      this.subscriptionCallbacks.set(symbol, new Set());
+    }
     
+    const callbacks = this.subscriptionCallbacks.get(symbol)!;
+    callbacks.add(callback);
+
     // Only send subscribe request if this is the first listener for this symbol
-    if (currentCount === 0) {
-      console.log(`Subscribing to ticks for ${symbol} (req_id: ${reqId})`);
+    if (callbacks.size === 1) {
+      console.log(`Subscribing to ticks for ${symbol}`);
       this.send({
         ticks: symbol,
         subscribe: 1,
-        req_id: reqId
+        req_id: ++this.reqIdCounter
       });
-    } else {
-      console.log(`Adding additional listener for ${symbol} (existing subscription)`);
     }
-    
-    const listener = (data: any) => {
-      if (data.msg_type === 'tick' && data.tick && data.tick.symbol === symbol) {
-        callback({
-          symbol: data.tick.symbol,
-          quote: data.tick.quote,
-          epoch: data.tick.epoch,
-          id: data.tick.id,
-        });
-      }
-    };
-    
-    this.on('tick', listener);
 
     return () => {
       if (simulatorInterval) {
-        console.log(`Stopping simulator for ${symbol}`);
         clearInterval(simulatorInterval);
       }
       
-      const count = this.subscriptionCounts.get(symbol) || 0;
-      if (count <= 1) {
-        this.subscriptionCounts.delete(symbol);
-        console.log(`Unsubscribing from ticks for ${symbol} (last listener)`);
-        const subId = this.activeSubscriptions.get(symbol);
-        if (subId) {
-          this.send({ forget: subId });
-          this.activeSubscriptions.delete(symbol);
-        } else {
-          this.send({ forget_all: 'ticks' });
+      const callbacks = this.subscriptionCallbacks.get(symbol);
+      if (callbacks) {
+        callbacks.delete(callback);
+        if (callbacks.size === 0) {
+          console.log(`Unsubscribing from ticks for ${symbol}`);
+          const subId = this.activeSubscriptions.get(symbol);
+          if (subId) {
+            this.send({ forget: subId });
+            this.activeSubscriptions.delete(symbol);
+          } else {
+            // If we don't have a subId yet but want to forget, we have a problem.
+            // Sending forget_all is risky but sometimes necessary.
+            // Better: just wait for it.
+          }
+          this.subscriptionCallbacks.delete(symbol);
         }
-      } else {
-        this.subscriptionCounts.set(symbol, count - 1);
-        console.log(`Removing one listener for ${symbol} (${count - 1} remaining)`);
       }
-      this.off('tick', listener);
     };
   }
 

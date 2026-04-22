@@ -20,11 +20,31 @@ import { cn } from '@/lib/utils';
 
 import { StorageService } from './lib/storage';
 
+interface Trade {
+  id: string;
+  userId: string;
+  symbol: string;
+  type: 'buy' | 'sell';
+  amount: number;
+  duration: number;
+  entry: number;
+  entryPrice: number;
+  status: 'OPEN' | 'CLOSED';
+  timestamp: number;
+  result?: 'win' | 'loss';
+  payout?: number;
+  exit?: number;
+  exitPrice?: number;
+  profit?: number;
+  closedAt?: number;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [marketCategory, setMarketCategory] = useState('Derived');
   const [selectedSymbol, setSelectedSymbol] = useState('R_100');
   const [currentTick, setCurrentTick] = useState<Tick | null>(null);
+  const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [isReady, setIsReady] = useState(false);
@@ -40,8 +60,8 @@ export default function App() {
 
   // Pull initial data for the user if they were already logged in
   const [balance, setBalance] = useState(() => StorageService.getBalance(user?.uid));
-  const [activeTrades, setActiveTrades] = useState<any[]>([]);
-  const [tradeHistory, setTradeHistory] = useState<any[]>(() => StorageService.getTrades(user?.uid));
+  const [activeTrades, setActiveTrades] = useState<Trade[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<Trade[]>(() => StorageService.getTrades(user?.uid));
   const [transactions, setTransactions] = useState<any[]>(() => StorageService.getTransactions(user?.uid));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -137,7 +157,7 @@ export default function App() {
 
   // Trade Lifecycle Manager
   useEffect(() => {
-    if (!user?.uid || activeTrades.length === 0 || !currentTick) return;
+    if (!user?.uid || activeTrades.length === 0) return;
 
     const now = Date.now();
     const finishedTrades = activeTrades.filter(t => (t.timestamp + (t.duration * 1000)) <= now);
@@ -154,10 +174,8 @@ export default function App() {
           const tradeAmount = Number(trade.amount) || 0;
           const entryPrice = Number(trade.entryPrice || trade.entry || 0);
           
-          // Use current price if it's for the same symbol, otherwise fallback to entry (Tie) 
-          // to avoid settling a Forex trade with a Crypto price.
-          const isSymbolMatch = trade.symbol === currentTick.symbol;
-          const exitPrice = isSymbolMatch ? (Number(currentTick.quote) || entryPrice) : entryPrice;
+          // Use price for the specific symbol if available, otherwise entry (Tie)
+          const exitPrice = symbolPrices[trade.symbol] || entryPrice;
 
           // Calculate result
           const isWin = trade.type === 'buy' 
@@ -219,7 +237,28 @@ export default function App() {
 
       processTrades();
     }
-  }, [user?.uid, activeTrades, currentTick]);
+  }, [user?.uid, activeTrades, symbolPrices]);
+
+  // Dynamic Subscriptions for Active Trades
+  useEffect(() => {
+    if (!user?.uid || activeTrades.length === 0) return;
+
+    const unsubs: (() => void)[] = [];
+    const symbolsToSubscribe = Array.from(new Set(activeTrades.map(t => t.symbol))) as string[];
+
+    symbolsToSubscribe.forEach((symbol) => {
+      // Don't duplicate selected symbol subscription (handled elsewhere)
+      if (symbol === selectedSymbol) return;
+
+      console.log(`Subscribing to active trade symbol: ${symbol}`);
+      const unsub = derivApi.subscribeTicks(symbol, (tick: Tick) => {
+        setSymbolPrices(prev => ({ ...prev, [symbol]: tick.quote }));
+      });
+      unsubs.push(unsub);
+    });
+
+    return () => unsubs.forEach(u => u());
+  }, [user?.uid, activeTrades.map(t => t.id).join(','), selectedSymbol]);
 
   // Sync local balance whenever it changes
   useEffect(() => {
@@ -245,9 +284,9 @@ export default function App() {
         ...doc.data()
       })) as any[];
       
-      const active = allTrades.filter(t => t.status === 'OPEN');
+      const active = allTrades.filter(t => t.status === 'OPEN') as Trade[];
       const closed = allTrades.filter(t => t.status === 'CLOSED')
-        .sort((a, b) => (b.closedAt || b.timestamp) - (a.closedAt || a.timestamp));
+        .sort((a, b) => (b.closedAt || b.timestamp) - (a.timestamp || 0)) as Trade[];
       
       setActiveTrades(active);
       setTradeHistory(closed);
@@ -388,6 +427,7 @@ export default function App() {
         unsubscribe = derivApi.subscribeTicks(selectedSymbol, (tick) => {
           if (!isActive) return;
           setCurrentTick(tick);
+          setSymbolPrices(prev => ({ ...prev, [selectedSymbol]: tick.quote }));
           
           setHistory(prev => {
             const newHistory = [...prev, { epoch: tick.epoch, quote: tick.quote }];
