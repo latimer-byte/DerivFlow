@@ -1,6 +1,6 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Star } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../lib/utils';
 
 const markets = [
   { symbol: 'R_100', name: 'Volatility 100 Index', price: 1245.20, change: 2.4, category: 'Derived' },

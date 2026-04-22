@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '../lib/utils';
 import { History as HistoryIcon, List, Terminal, Activity, PieChart as PieChartIcon, TrendingUp, TrendingDown, Wallet, Filter, Calendar } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 

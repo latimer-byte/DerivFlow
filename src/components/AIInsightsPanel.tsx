@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, RefreshCw, BrainCircuit } from 'lucide-react';
-import { getMarketInsights } from '@/services/geminiService';
+import { getMarketInsights } from '../services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface AIInsightsPanelProps {

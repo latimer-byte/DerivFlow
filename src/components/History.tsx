@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { History as HistoryIcon, ArrowUpRight, ArrowDownLeft, Calendar, Filter as FilterIcon, Download, Search, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 
 interface TradeHistoryItem {

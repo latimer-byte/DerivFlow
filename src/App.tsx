@@ -16,7 +16,7 @@ import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { derivApi, Tick, HistoryPoint, Candle } from './services/derivApi';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '@/lib/utils';
+import { cn } from './lib/utils';
 
 import { StorageService } from './lib/storage';
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Mail, Lock, LogIn, UserPlus, Moon, Sun, Bell, Shield, Globe, RefreshCw, Key, ExternalLink, CheckCircle2, Zap, Monitor, Smartphone, Tablet } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { derivApi } from '@/services/derivApi';
+import { cn } from '../lib/utils';
+import { derivApi } from '../services/derivApi';
 
 interface SettingsProps {
   user: {
