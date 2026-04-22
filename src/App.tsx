@@ -336,8 +336,9 @@ export default function App() {
 
       initFirebaseForDeriv();
       
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Clean up URL and redirect to root if we were on /callback
+      const finalPath = window.location.pathname === '/callback' ? '/' : window.location.pathname;
+      window.history.replaceState({}, document.title, finalPath);
     }
   }, []);
 

@@ -230,8 +230,25 @@ class DerivService {
   }
 
   public subscribeTicks(symbol: string, callback: (tick: Tick) => void) {
-    // If not connected, start a simulator as fallback
     let simulatorInterval: any = null;
+    
+    const tickHandler = (data: any) => {
+      if (data.msg_type === 'tick' && data.tick && data.tick.symbol === symbol) {
+        // If we get a real tick, stop any simulator for this symbol
+        if (simulatorInterval) {
+          console.log(`Real data received for ${symbol}, stopping simulator`);
+          clearInterval(simulatorInterval);
+          simulatorInterval = null;
+        }
+        callback({
+          symbol: data.tick.symbol,
+          quote: data.tick.quote,
+          epoch: data.tick.epoch,
+          id: data.tick.id,
+        });
+      }
+    };
+
     if (!this.isConnected) {
       simulatorInterval = this.simulateTicks(symbol, callback);
     }
@@ -249,33 +266,19 @@ class DerivService {
         subscribe: 1,
         req_id: reqId
       });
-    } else {
-      console.log(`Adding additional listener for ${symbol} (existing subscription)`);
     }
-    
-    const listener = (data: any) => {
-      if (data.msg_type === 'tick' && data.tick && data.tick.symbol === symbol) {
-        callback({
-          symbol: data.tick.symbol,
-          quote: data.tick.quote,
-          epoch: data.tick.epoch,
-          id: data.tick.id,
-        });
-      }
-    };
-    
-    this.on('tick', listener);
+
+    this.on('tick', tickHandler);
 
     return () => {
       if (simulatorInterval) {
-        console.log(`Stopping simulator for ${symbol}`);
         clearInterval(simulatorInterval);
+        simulatorInterval = null;
       }
       
       const count = this.subscriptionCounts.get(symbol) || 0;
       if (count <= 1) {
         this.subscriptionCounts.delete(symbol);
-        console.log(`Unsubscribing from ticks for ${symbol} (last listener)`);
         const subId = this.activeSubscriptions.get(symbol);
         if (subId) {
           this.send({ forget: subId });
@@ -285,9 +288,8 @@ class DerivService {
         }
       } else {
         this.subscriptionCounts.set(symbol, count - 1);
-        console.log(`Removing one listener for ${symbol} (${count - 1} remaining)`);
       }
-      this.off('tick', listener);
+      this.off('tick', tickHandler);
     };
   }
 

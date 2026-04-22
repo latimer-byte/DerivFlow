@@ -44,15 +44,15 @@ export function Auth({ onLogin }: AuthProps) {
       const manualId = window.prompt("Deriv App ID is missing. Please enter your App ID from api.deriv.com:");
       if (manualId) {
         localStorage.setItem('deriv_app_id', manualId);
-        const redirectUrl = window.location.origin + window.location.pathname;
+        const redirectUrl = 'https://deriv-flow.vercel.app/callback';
         const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${manualId}&l=en&brand=deriv&redirect_uri=${encodeURIComponent(redirectUrl)}`;
         window.location.href = derivLoginUrl;
       }
       return;
     }
     
-    // Normalize redirect URL (ensure it matches exactly what was registered)
-    const redirectUrl = window.location.origin + window.location.pathname;
+    // Use the requested redirect URL for Deriv OAuth
+    const redirectUrl = 'https://deriv-flow.vercel.app/callback';
     const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&brand=deriv&redirect_uri=${encodeURIComponent(redirectUrl)}`;
     
     console.log('Redirecting to:', derivLoginUrl);

@@ -64,7 +64,7 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
           />
           <SettingsNavItem 
             icon={Key} 
-            label="API Configuration" 
+            label="Integrations" 
             active={activeSection === 'api'} 
             onClick={() => setActiveSection('api')}
           />
@@ -181,39 +181,58 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
             <div className="bg-card border border-border rounded-[2rem] p-6 md:p-8 shadow-xl space-y-8 animate-in zoom-in-95 duration-300">
               <div className="flex items-center gap-4 mb-2">
                 <div className="w-12 h-12 bg-brand/10 rounded-2xl flex items-center justify-center">
-                  <Key className="w-6 h-6 text-brand" />
+                  <Globe className="w-6 h-6 text-brand" />
                 </div>
                 <div>
-                  <h4 className="text-xl font-bold text-text-primary">Deriv API Configuration</h4>
-                  <p className="text-sm text-text-muted">Connect your live Deriv account to start trading.</p>
+                  <h4 className="text-xl font-bold text-text-primary">Integrations</h4>
+                  <p className="text-sm text-text-muted">Manage your connections with external platforms.</p>
                 </div>
               </div>
 
               <div className="space-y-6">
                 <div className="bg-secondary/30 border border-border rounded-2xl p-4">
                   <h5 className="text-sm font-bold text-text-primary mb-2 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    How to get your API Key:
+                    <Zap className="w-4 h-4 text-brand" />
+                    Deriv OAuth Configuration
                   </h5>
-                  <ol className="text-xs text-text-muted space-y-2 list-decimal ml-4">
-                    <li>Log in to your Deriv account.</li>
-                    <li>Go to Settings {'>'} API Token.</li>
-                    <li>Create a new token with 'Read' and 'Trade' scopes.</li>
-                    <li>Copy the token and paste it below.</li>
-                  </ol>
-                  <a 
-                    href="https://app.deriv.com/account/api-token" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-2 text-xs text-brand font-bold hover:underline"
-                  >
-                    Go to Deriv API Settings <ExternalLink className="w-3 h-3" />
-                  </a>
+                  <p className="text-xs text-text-muted mb-4">
+                    To enable professional trading, register this app at <a href="https://api.deriv.com" target="_blank" className="text-brand hover:underline">api.deriv.com</a> and use the following Redirect URI:
+                  </p>
+                  <div className="flex items-center gap-2 p-3 bg-background rounded-xl border border-border group">
+                    <code className="text-[10px] font-mono text-brand break-all flex-1">
+                      https://deriv-flow.vercel.app/callback
+                    </code>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText('https://deriv-flow.vercel.app/callback');
+                        alert('Redirect URI copied to clipboard!');
+                      }}
+                      className="p-1.5 hover:bg-secondary rounded-lg transition-colors"
+                      title="Copy URL"
+                    >
+                      <RefreshCw className="w-3 h-3 text-text-muted" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-text-muted uppercase tracking-widest ml-1">API Token</label>
-                  <div className="relative">
+                  <label className="text-xs font-bold text-text-muted uppercase tracking-widest ml-1">Deriv App ID</label>
+                  <input 
+                    type="text" 
+                    placeholder="Enter your Deriv App ID (e.g. 1089)"
+                    value={localStorage.getItem('deriv_app_id') || ''}
+                    onChange={(e) => {
+                      localStorage.setItem('deriv_app_id', e.target.value);
+                      // Force a re-render or just let it be for now
+                      setApiKey(prev => prev); 
+                    }}
+                    className="w-full bg-secondary/50 border border-border rounded-2xl py-4 px-4 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all font-mono"
+                  />
+                </div>
+                
+                <div className="pt-4 border-t border-border">
+                  <h5 className="text-sm font-bold text-text-primary mb-4">API Token (Manual)</h5>
+                  <div className="relative mb-4">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                     <input 
                       type="password" 
@@ -223,19 +242,19 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
                       className="w-full bg-secondary/50 border border-border rounded-2xl py-4 pl-12 pr-4 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all font-mono"
                     />
                   </div>
-                </div>
 
-                <button 
-                  onClick={handleConnectDeriv}
-                  disabled={isConnecting || !apiKey}
-                  className={cn(
-                    "w-full py-5 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50",
-                    connectionStatus === 'connected' ? "bg-emerald-500 text-white shadow-emerald-500/20" : "bg-brand text-white shadow-brand/20 hover:bg-brand-hover"
-                  )}
-                >
-                  {isConnecting ? <RefreshCw className="w-6 h-6 animate-spin" /> : (connectionStatus === 'connected' ? <CheckCircle2 className="w-6 h-6" /> : <Zap className="w-6 h-6" />)}
-                  {isConnecting ? 'Connecting to Deriv...' : (connectionStatus === 'connected' ? 'Connected & Live' : 'Connect & Launch App')}
-                </button>
+                  <button 
+                    onClick={handleConnectDeriv}
+                    disabled={isConnecting || !apiKey}
+                    className={cn(
+                      "w-full py-5 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50",
+                      connectionStatus === 'connected' ? "bg-emerald-500 text-white shadow-emerald-500/20" : "bg-brand text-white shadow-brand/20 hover:bg-brand-hover"
+                    )}
+                  >
+                    {isConnecting ? <RefreshCw className="w-6 h-6 animate-spin" /> : (connectionStatus === 'connected' ? <CheckCircle2 className="w-6 h-6" /> : <Zap className="w-6 h-6" />)}
+                    {isConnecting ? 'Connecting...' : (connectionStatus === 'connected' ? 'Authorized' : 'Connect API Token')}
+                  </button>
+                </div>
               </div>
             </div>
           )}
