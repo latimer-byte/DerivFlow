@@ -3,13 +3,9 @@
  * Handles WebSocket connection to Deriv API
  */
 
-const DEFAULT_APP_ID = '333ttXJvMqziMT0ErTbKd';
+const DEFAULT_APP_ID = '1089';
 const getAppId = () => localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || DEFAULT_APP_ID;
-const getWsUrl = () => {
-  const appId = getAppId();
-  // Using ws.derivws.com which is the modern endpoint, adding branch and language params
-  return `wss://ws.derivws.com/websockets/v3?app_id=${appId}&l=en&brand=deriv`;
-};
+const getWsUrl = () => `wss://ws.binaryws.com/websockets/v3?app_id=${getAppId()}`;
 
 export type Tick = {
   symbol: string;
@@ -35,63 +31,42 @@ class DerivService {
   private socket: WebSocket | null = null;
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
   private isConnected = false;
-  private isConnecting = false;
   private messageQueue: any[] = [];
   private pingInterval: any = null;
   private activeSubscriptions: Map<string, string> = new Map(); // symbol -> subscriptionId
-  private subscriptionCallbacks: Map<string, Set<(tick: Tick) => void>> = new Map(); // symbol -> callbacks
+  private subscriptionCounts: Map<string, number> = new Map(); // symbol -> count
   private reqIdCounter = 0;
   private token: string | null = localStorage.getItem('deriv_token');
   private isAuthorized = false;
-  private pendingRequests: Map<number, (error?: Error) => void> = new Map();
 
   constructor() {
     this.connect();
   }
 
   private connect() {
-    if (this.isConnecting) return;
-    this.isConnecting = true;
-
     const appId = getAppId();
     const wsUrl = getWsUrl();
     console.log(`Connecting to Deriv API (App ID: ${appId})...`);
-    
-    if (this.socket) {
-      this.socket.onopen = null;
-      this.socket.onmessage = null;
-      this.socket.onclose = null;
-      this.socket.onerror = null;
-      try { this.socket.close(); } catch (e) {}
-    }
-
     this.socket = new WebSocket(wsUrl);
 
     this.socket.onopen = () => {
       this.isConnected = true;
-      this.isConnecting = false;
       console.log('Deriv WebSocket Connected');
       
-      // Resubscribe to active symbols on reconnection
-      this.activeSubscriptions.clear(); // Clear old IDs, they are invalid now
-      this.subscriptionCallbacks.forEach((callbacks, symbol) => {
-        if (callbacks.size > 0) {
-          console.log(`Re-subscribing to ${symbol} after reconnection`);
-          this.send({ ticks: symbol, subscribe: 1, req_id: ++this.reqIdCounter });
-        }
-      });
-
       // Authorize if token is available
       if (this.token) {
         this.authorize(this.token);
-      } else {
-        this.processQueue();
       }
 
-      if (this.pingInterval) clearInterval(this.pingInterval);
+      // Start ping to keep connection alive
       this.pingInterval = setInterval(() => {
         this.send({ ping: 1 });
       }, 30000);
+
+      while (this.messageQueue.length > 0) {
+        const msg = this.messageQueue.shift();
+        this.send(msg);
+      }
     };
 
     this.socket.onmessage = (event) => {
@@ -101,140 +76,65 @@ class DerivService {
         const reqId = data.req_id;
 
         if (data.error) {
+          // Special handling for "already subscribed" - we can ignore it if we're tracking correctly
           if (data.error.code === 'AlreadySubscribed') {
-            // Already subscribed is fine, we just want the ticks
             console.warn(`Deriv API: Already subscribed to ${data.error.details?.symbol || 'symbol'}`);
           } else {
             console.error(`Deriv API Error (${msgType}):`, data.error.message);
-            // If authorization failed, we must unblock anyone waiting
-            if (msgType === 'authorize') {
-              this.isAuthorized = false;
-              this.processQueue();
-              this.trigger('authorize', data);
-            }
           }
           
           if (reqId !== undefined) {
             this.trigger(`req_${reqId}`, data);
+            this.trigger(`${msgType}_${reqId}`, data);
           }
           return;
         }
 
+        // Handle authorization response
         if (msgType === 'authorize') {
           this.isAuthorized = true;
           console.log('Deriv API: Authorized successfully');
-          this.processQueue();
+          
+          // Now that we are authorized, we can send queued messages
+          while (this.messageQueue.length > 0) {
+            const msg = this.messageQueue.shift();
+            this.send(msg);
+          }
         }
 
+        // Store subscription ID if present
         if (data.subscription && data.tick && data.tick.symbol) {
           this.activeSubscriptions.set(data.tick.symbol, data.subscription.id);
         }
         
-        // Handle tick data
-        if (msgType === 'tick' && data.tick) {
-          const callbacks = this.subscriptionCallbacks.get(data.tick.symbol);
-          if (callbacks) {
-            const tick: Tick = {
-              symbol: data.tick.symbol,
-              quote: data.tick.quote,
-              epoch: data.tick.epoch,
-              id: data.tick.id,
-            };
-            callbacks.forEach(cb => cb(tick));
-          }
-        }
-
+        // Handle generic message type listeners
         this.trigger(msgType, data);
         
+        // Handle specific request ID listeners - prioritize req_id as unique identifier
         if (reqId !== undefined) {
           this.trigger(`req_${reqId}`, data);
+          this.trigger(`${msgType}_${reqId}`, data);
+        }
+        
+        // Handle specific subscription IDs
+        if (data.subscription) {
+          this.trigger(`sub_${data.subscription.id}`, data);
         }
       } catch (e) {
         console.error('Failed to parse Deriv message:', e);
       }
     };
 
-    this.socket.onclose = (event) => {
+    this.socket.onclose = () => {
       this.isConnected = false;
-      this.isConnecting = false;
-      this.isAuthorized = false;
       if (this.pingInterval) clearInterval(this.pingInterval);
-      
-      console.warn(`Deriv WebSocket Closed. Code: ${event.code}, Reason: ${event.reason || 'None'}`);
-
-      if (this.pendingRequests.size > 0) {
-        this.pendingRequests.forEach((fail) => fail(new Error('Deriv API connection lost')));
-        this.pendingRequests.clear();
-      }
-
-      this.trigger('connection_lost', event);
-
-      console.log('Reconnecting in 3s...');
-      setTimeout(() => this.connect(), 3000);
+      console.log('Deriv WebSocket Disconnected. Reconnecting in 5s...');
+      setTimeout(() => this.connect(), 5000);
     };
 
     this.socket.onerror = (error) => {
-      this.isConnecting = false;
       console.error('Deriv WebSocket Error:', error);
     };
-  }
-
-  private async request(data: any, timeoutMs: number = 35000): Promise<any> {
-    // Proactively connect if disconnected
-    if (!this.isConnected && !this.isConnecting && this.token) {
-      console.log('Request initiated while disconnected. Connecting...');
-      this.connect();
-    }
-
-    try {
-      if (data.authorize === undefined && this.token && !this.isAuthorized) {
-        await this.waitForReady();
-      }
-    } catch (e) {
-      console.warn("Request proceeding without full auth wait", e);
-    }
-
-    const reqId = data.req_id || ++this.reqIdCounter;
-    data.req_id = reqId;
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        cleanup();
-        reject(new Error(`Request ${reqId} timed out (${timeoutMs}ms)`));
-      }, timeoutMs);
-
-      const cleanup = () => {
-        clearTimeout(timeout);
-        this.off(`req_${reqId}`, listener);
-        this.pendingRequests.delete(reqId);
-      };
-
-      const listener = (response: any) => {
-        if (response.req_id === reqId) {
-          cleanup();
-          if (response.error) {
-            reject(new Error(response.error.message || 'Deriv API Error'));
-          } else {
-            resolve(response);
-          }
-        }
-      };
-
-      this.pendingRequests.set(reqId, (err) => {
-        cleanup();
-        reject(err || new Error('Request cancelled'));
-      });
-
-      this.on(`req_${reqId}`, listener);
-      this.send(data);
-    });
-  }
-
-  private processQueue() {
-    console.log(`Processing ${this.messageQueue.length} queued messages.`);
-    const queue = [...this.messageQueue];
-    this.messageQueue = [];
-    queue.forEach(msg => this.send(msg));
   }
 
   private trigger(type: string, data: any) {
@@ -246,11 +146,8 @@ class DerivService {
 
   public send(data: any) {
     if (this.isConnected && this.socket?.readyState === WebSocket.OPEN) {
-      // If we have a token and aren't authorized yet, only allow certain messages
-      const isAuthRequest = data.authorize !== undefined;
-      const isPing = data.ping !== undefined;
-      
-      if (!isAuthRequest && !isPing && this.token && !this.isAuthorized) {
+      // If it's not an authorize request and we have a token but aren't authorized yet, queue it
+      if (data.authorize === undefined && this.token && !this.isAuthorized) {
         this.messageQueue.push(data);
       } else {
         this.socket.send(JSON.stringify(data));
@@ -264,7 +161,7 @@ class DerivService {
     this.token = token;
     localStorage.setItem('deriv_token', token);
     this.isAuthorized = false;
-    this.send({ authorize: token });
+    this.socket?.send(JSON.stringify({ authorize: token }));
   }
 
   public setAppId(appId: string) {
@@ -315,52 +212,64 @@ class DerivService {
   }
 
   public subscribeTicks(symbol: string, callback: (tick: Tick) => void) {
+    // If not connected, start a simulator as fallback
     let simulatorInterval: any = null;
-    const isMockMode = !this.isConnected && !this.isConnecting && !this.token;
-
-    if (isMockMode) {
+    if (!this.isConnected) {
       simulatorInterval = this.simulateTicks(symbol, callback);
     }
 
-    if (!this.subscriptionCallbacks.has(symbol)) {
-      this.subscriptionCallbacks.set(symbol, new Set());
-    }
-    
-    const callbacks = this.subscriptionCallbacks.get(symbol)!;
-    callbacks.add(callback);
+    const currentCount = this.subscriptionCounts.get(symbol) || 0;
+    this.subscriptionCounts.set(symbol, currentCount + 1);
 
+    const reqId = ++this.reqIdCounter;
+    
     // Only send subscribe request if this is the first listener for this symbol
-    if (callbacks.size === 1) {
-      console.log(`Subscribing to ticks for ${symbol}`);
+    if (currentCount === 0) {
+      console.log(`Subscribing to ticks for ${symbol} (req_id: ${reqId})`);
       this.send({
         ticks: symbol,
         subscribe: 1,
-        req_id: ++this.reqIdCounter
+        req_id: reqId
       });
+    } else {
+      console.log(`Adding additional listener for ${symbol} (existing subscription)`);
     }
+    
+    const listener = (data: any) => {
+      if (data.msg_type === 'tick' && data.tick && data.tick.symbol === symbol) {
+        callback({
+          symbol: data.tick.symbol,
+          quote: data.tick.quote,
+          epoch: data.tick.epoch,
+          id: data.tick.id,
+        });
+      }
+    };
+    
+    this.on('tick', listener);
 
     return () => {
       if (simulatorInterval) {
+        console.log(`Stopping simulator for ${symbol}`);
         clearInterval(simulatorInterval);
       }
       
-      const callbacks = this.subscriptionCallbacks.get(symbol);
-      if (callbacks) {
-        callbacks.delete(callback);
-        if (callbacks.size === 0) {
-          console.log(`Unsubscribing from ticks for ${symbol}`);
-          const subId = this.activeSubscriptions.get(symbol);
-          if (subId) {
-            this.send({ forget: subId });
-            this.activeSubscriptions.delete(symbol);
-          } else {
-            // If we don't have a subId yet but want to forget, we have a problem.
-            // Sending forget_all is risky but sometimes necessary.
-            // Better: just wait for it.
-          }
-          this.subscriptionCallbacks.delete(symbol);
+      const count = this.subscriptionCounts.get(symbol) || 0;
+      if (count <= 1) {
+        this.subscriptionCounts.delete(symbol);
+        console.log(`Unsubscribing from ticks for ${symbol} (last listener)`);
+        const subId = this.activeSubscriptions.get(symbol);
+        if (subId) {
+          this.send({ forget: subId });
+          this.activeSubscriptions.delete(symbol);
+        } else {
+          this.send({ forget_all: 'ticks' });
         }
+      } else {
+        this.subscriptionCounts.set(symbol, count - 1);
+        console.log(`Removing one listener for ${symbol} (${count - 1} remaining)`);
       }
+      this.off('tick', listener);
     };
   }
 
@@ -371,102 +280,145 @@ class DerivService {
 
     return new Promise((resolve, reject) => {
       const checkTimeout = setTimeout(() => {
-        cleanup();
-        reject(new Error('Deriv API connection/auth timed out (30s)'));
-      }, 30000);
-
-      const cleanup = () => {
-        clearTimeout(checkTimeout);
         this.off('authorize', onAuth);
-        this.off('ping', onConnect);
-        this.off('connection_lost', onError);
-      };
+        reject(new Error('Deriv API connection/auth timed out'));
+      }, 20000);
 
       const onAuth = () => {
-        cleanup();
+        clearTimeout(checkTimeout);
+        this.off('authorize', onAuth);
         resolve();
       };
-
-      const onConnect = () => {
-        cleanup();
-        resolve();
-      };
-
-      const onError = () => {
-        cleanup();
-        reject(new Error('Deriv API connection lost during ready wait'));
-      };
-
-      this.on('authorize', onAuth);
-      this.on('connection_lost', onError);
 
       if (!this.isConnected) {
+        // Wait for connect event? We already have authorize as a signal after connect
+        this.on('authorize', onAuth);
         if (!this.token) {
+          // If no token, we just wait for connection (ping response as heart-beat)
+          const onConnect = () => {
+            clearTimeout(checkTimeout);
+            this.off('ping', onConnect);
+            resolve();
+          };
           this.on('ping', onConnect);
           this.send({ ping: 1 });
-        } else if (!this.isConnecting) {
-          this.connect();
         }
+      } else {
+        this.on('authorize', onAuth);
       }
     });
   }
 
-  public async getHistory(symbol: string, count: number = 100, retryCount = 1): Promise<HistoryPoint[]> {
+  public async getHistory(symbol: string, count: number = 100) {
     try {
-      const data = await this.request({
+      if (this.token && !this.isAuthorized) {
+        await this.waitForReady();
+      }
+    } catch (e) {
+      console.warn("History request proceeding without full auth wait", e);
+    }
+
+    return new Promise<HistoryPoint[]>((resolve, reject) => {
+      const reqId = ++this.reqIdCounter;
+      console.log(`Requesting history for ${symbol} (req_id: ${reqId})`);
+      
+      const timeout = setTimeout(() => {
+        this.off(`req_${reqId}`, listener);
+        reject(new Error(`History request for ${symbol} timed out (req_id: ${reqId})`));
+      }, 25000);
+
+      const listener = (data: any) => {
+        if (data.req_id === reqId) {
+          clearTimeout(timeout);
+          this.off(`req_${reqId}`, listener);
+          
+          if (data.error) {
+            reject(new Error(data.error.message || 'Unknown Deriv API error'));
+            return;
+          }
+
+          if (data.msg_type !== 'history' || !data.history || !data.history.times) {
+            reject(new Error(`Expected history response, got ${data.msg_type}`));
+            return;
+          }
+
+          const history = data.history.times.map((time: number, index: number) => ({
+            epoch: time,
+            quote: data.history.prices[index],
+          }));
+          resolve(history);
+        }
+      };
+
+      this.on(`req_${reqId}`, listener);
+
+      this.send({
         ticks_history: symbol,
         adjust_start_time: 1,
         count: count,
         end: 'latest',
         style: 'ticks',
+        req_id: reqId,
       });
-
-      if (!data.history || !data.history.times) {
-        throw new Error('Invalid history format from API');
-      }
-
-      return data.history.times.map((time: number, index: number) => ({
-        epoch: time,
-        quote: data.history.prices[index],
-      }));
-    } catch (error) {
-      if (retryCount > 0) {
-        console.warn(`History request for ${symbol} failed. Retrying...`, error);
-        return this.getHistory(symbol, count, retryCount - 1);
-      }
-      throw error;
-    }
+    });
   }
 
-  public async getCandles(symbol: string, granularity: number = 60, count: number = 100, retryCount = 1): Promise<Candle[]> {
+  public async getCandles(symbol: string, granularity: number = 60, count: number = 100) {
     try {
-      const data = await this.request({
+      if (this.token && !this.isAuthorized) {
+        await this.waitForReady();
+      }
+    } catch (e) {
+      console.warn("Candle request proceeding without full auth wait", e);
+    }
+
+    return new Promise<Candle[]>((resolve, reject) => {
+      const reqId = ++this.reqIdCounter;
+      console.log(`Requesting candles for ${symbol} (req_id: ${reqId})`);
+      
+      const timeout = setTimeout(() => {
+        this.off(`req_${reqId}`, listener);
+        reject(new Error(`Candles request for ${symbol} timed out (req_id: ${reqId})`));
+      }, 25000);
+
+      const listener = (data: any) => {
+        if (data.req_id === reqId) {
+          clearTimeout(timeout);
+          this.off(`req_${reqId}`, listener);
+          
+          if (data.error) {
+            reject(new Error(data.error.message || 'Unknown Deriv API error'));
+            return;
+          }
+
+          if (data.msg_type !== 'candles' || !data.candles) {
+            reject(new Error(`Expected candles response, got ${data.msg_type}`));
+            return;
+          }
+
+          const candles = data.candles.map((c: any) => ({
+            epoch: c.epoch,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+          }));
+          resolve(candles);
+        }
+      };
+
+      this.on(`req_${reqId}`, listener);
+
+      this.send({
         ticks_history: symbol,
         adjust_start_time: 1,
         count: count,
         end: 'latest',
         style: 'candles',
         granularity: granularity,
+        req_id: reqId,
       });
-
-      if (!data.candles) {
-        throw new Error('Invalid candles format from API');
-      }
-
-      return data.candles.map((c: any) => ({
-        epoch: c.epoch,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-      }));
-    } catch (error) {
-      if (retryCount > 0) {
-        console.warn(`Candles request for ${symbol} failed. Retrying...`, error);
-        return this.getCandles(symbol, granularity, count, retryCount - 1);
-      }
-      throw error;
-    }
+    });
   }
 }
 

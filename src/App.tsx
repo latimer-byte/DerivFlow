@@ -12,39 +12,19 @@ import { History } from './components/History';
 import { Analytics } from './components/Analytics';
 import { Auth } from './components/Auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, onAuthStateChanged, signInAnonymously } from '@/lib/firebase';
+import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, onAuthStateChanged, signInAnonymously } from './lib/firebase';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
-import { derivApi, Tick, HistoryPoint, Candle } from '@/services/derivApi';
+import { derivApi, Tick, HistoryPoint, Candle } from './services/derivApi';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 
-import { StorageService } from '@/lib/storage';
-
-interface Trade {
-  id: string;
-  userId: string;
-  symbol: string;
-  type: 'buy' | 'sell';
-  amount: number;
-  duration: number;
-  entry: number;
-  entryPrice: number;
-  status: 'OPEN' | 'CLOSED';
-  timestamp: number;
-  result?: 'win' | 'loss';
-  payout?: number;
-  exit?: number;
-  exitPrice?: number;
-  profit?: number;
-  closedAt?: number;
-}
+import { StorageService } from './lib/storage';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [marketCategory, setMarketCategory] = useState('Derived');
   const [selectedSymbol, setSelectedSymbol] = useState('R_100');
   const [currentTick, setCurrentTick] = useState<Tick | null>(null);
-  const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [isReady, setIsReady] = useState(false);
@@ -60,8 +40,8 @@ export default function App() {
 
   // Pull initial data for the user if they were already logged in
   const [balance, setBalance] = useState(() => StorageService.getBalance(user?.uid));
-  const [activeTrades, setActiveTrades] = useState<Trade[]>([]);
-  const [tradeHistory, setTradeHistory] = useState<Trade[]>(() => StorageService.getTrades(user?.uid));
+  const [activeTrades, setActiveTrades] = useState<any[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<any[]>(() => StorageService.getTrades(user?.uid));
   const [transactions, setTransactions] = useState<any[]>(() => StorageService.getTransactions(user?.uid));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -157,7 +137,7 @@ export default function App() {
 
   // Trade Lifecycle Manager
   useEffect(() => {
-    if (!user?.uid || activeTrades.length === 0) return;
+    if (!user?.uid || activeTrades.length === 0 || !currentTick) return;
 
     const now = Date.now();
     const finishedTrades = activeTrades.filter(t => (t.timestamp + (t.duration * 1000)) <= now);
@@ -174,8 +154,10 @@ export default function App() {
           const tradeAmount = Number(trade.amount) || 0;
           const entryPrice = Number(trade.entryPrice || trade.entry || 0);
           
-          // Use price for the specific symbol if available, otherwise entry (Tie)
-          const exitPrice = symbolPrices[trade.symbol] || entryPrice;
+          // Use current price if it's for the same symbol, otherwise fallback to entry (Tie) 
+          // to avoid settling a Forex trade with a Crypto price.
+          const isSymbolMatch = trade.symbol === currentTick.symbol;
+          const exitPrice = isSymbolMatch ? (Number(currentTick.quote) || entryPrice) : entryPrice;
 
           // Calculate result
           const isWin = trade.type === 'buy' 
@@ -237,28 +219,7 @@ export default function App() {
 
       processTrades();
     }
-  }, [user?.uid, activeTrades, symbolPrices]);
-
-  // Dynamic Subscriptions for Active Trades
-  useEffect(() => {
-    if (!user?.uid || activeTrades.length === 0) return;
-
-    const unsubs: (() => void)[] = [];
-    const symbolsToSubscribe = Array.from(new Set(activeTrades.map(t => t.symbol))) as string[];
-
-    symbolsToSubscribe.forEach((symbol) => {
-      // Don't duplicate selected symbol subscription (handled elsewhere)
-      if (symbol === selectedSymbol) return;
-
-      console.log(`Subscribing to active trade symbol: ${symbol}`);
-      const unsub = derivApi.subscribeTicks(symbol, (tick: Tick) => {
-        setSymbolPrices(prev => ({ ...prev, [symbol]: tick.quote }));
-      });
-      unsubs.push(unsub);
-    });
-
-    return () => unsubs.forEach(u => u());
-  }, [user?.uid, activeTrades.map(t => t.id).join(','), selectedSymbol]);
+  }, [user?.uid, activeTrades, currentTick]);
 
   // Sync local balance whenever it changes
   useEffect(() => {
@@ -284,9 +245,9 @@ export default function App() {
         ...doc.data()
       })) as any[];
       
-      const active = allTrades.filter(t => t.status === 'OPEN') as Trade[];
+      const active = allTrades.filter(t => t.status === 'OPEN');
       const closed = allTrades.filter(t => t.status === 'CLOSED')
-        .sort((a, b) => (b.closedAt || b.timestamp) - (a.timestamp || 0)) as Trade[];
+        .sort((a, b) => (b.closedAt || b.timestamp) - (a.closedAt || a.timestamp));
       
       setActiveTrades(active);
       setTradeHistory(closed);
@@ -342,13 +303,6 @@ export default function App() {
     if (token) {
       console.log('Deriv OAuth callback detected');
       
-      // If we are in a popup, send the message to the opener and close
-      if (window.opener && window.opener !== window) {
-        window.opener.postMessage({ type: 'DERIV_AUTH_SUCCESS', token, acct }, window.location.origin);
-        window.close();
-        return;
-      }
-      
       // Silent anonymous sign-in to Firebase to enable Firestore for Deriv users
       const initFirebaseForDeriv = async () => {
         try {
@@ -390,16 +344,12 @@ export default function App() {
   // Initialize market data
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
-    let retryTimeout: NodeJS.Timeout | undefined;
     let isActive = true;
-    let retryCount = 0;
-    const MAX_RETRIES = 5;
 
     const initMarket = async () => {
-      if (retryTimeout) clearTimeout(retryTimeout);
       setIsReady(false);
       try {
-        console.log(`Initializing market for ${selectedSymbol} with ${timeframe} (Attempt ${retryCount + 1})...`);
+        console.log(`Initializing market for ${selectedSymbol} with ${timeframe} candles...`);
         
         const granularityMap: Record<string, number> = {
           '1M': 60,
@@ -421,25 +371,34 @@ export default function App() {
         setHistory(initialHistory);
         setCandles(initialCandles);
         setIsReady(true);
-        retryCount = 0; // Reset on success
 
         // Subscribe to ticks
         unsubscribe = derivApi.subscribeTicks(selectedSymbol, (tick) => {
           if (!isActive) return;
           setCurrentTick(tick);
-          setSymbolPrices(prev => ({ ...prev, [selectedSymbol]: tick.quote }));
           
+          // Update history
           setHistory(prev => {
             const newHistory = [...prev, { epoch: tick.epoch, quote: tick.quote }];
             return newHistory.slice(-100);
           });
 
+          // Update candles
           setCandles(prev => {
             if (prev.length === 0) return prev;
             const lastCandle = prev[prev.length - 1];
+            
+            const granularityMap: Record<string, number> = {
+              '1M': 60,
+              '5M': 300,
+              '15M': 900,
+              '1H': 3600,
+              '1D': 86400
+            };
             const candleInterval = granularityMap[timeframe] || 60;
             
             if (tick.epoch < lastCandle.epoch + candleInterval) {
+              // Update current candle
               const updatedCandle = {
                 ...lastCandle,
                 high: Math.max(lastCandle.high, tick.quote),
@@ -448,6 +407,7 @@ export default function App() {
               };
               return [...prev.slice(0, -1), updatedCandle];
             } else {
+              // Start new candle
               const newCandle = {
                 epoch: Math.floor(tick.epoch / candleInterval) * candleInterval,
                 open: tick.quote,
@@ -463,18 +423,20 @@ export default function App() {
         if (!isActive) return;
         console.error('Failed to initialize market:', error);
         
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 15000);
-        retryCount++;
-
-        if (retryCount <= MAX_RETRIES) {
-          console.log(`Retrying market initialization in ${delay}ms...`);
-          retryTimeout = setTimeout(() => {
-            if (!isActive || isReady) return;
-            initMarket();
-          }, delay);
-        } else {
-          console.error("Max market retries reached. Please check your connection.");
-        }
+        // If it's a timeout or connection error, we might want to retry once
+        setTimeout(() => {
+          if (!isActive || isReady) return;
+          console.log('Retrying market initialization...');
+          // Fallback to ensure UI isn't stuck if retry also fails
+          setIsReady(true);
+          if (history.length === 0) {
+            // Provide a base price based on the symbol if possible
+            const basePrice = selectedSymbol.startsWith('R_') ? 1000 : 1.0;
+            const now = Math.floor(Date.now() / 1000);
+            setHistory([{ epoch: now, quote: basePrice }]);
+            setCandles([{ epoch: now, open: basePrice, high: basePrice * 1.01, low: basePrice * 0.99, close: basePrice }]);
+          }
+        }, 5000);
       }
     };
 
@@ -483,7 +445,6 @@ export default function App() {
     return () => {
       isActive = false;
       if (unsubscribe) unsubscribe();
-      if (retryTimeout) clearTimeout(retryTimeout);
     };
   }, [selectedSymbol, timeframe]);
 
@@ -508,9 +469,6 @@ export default function App() {
       <ErrorBoundary>
         <Auth onLogin={(u) => {
           setUser(u);
-          if (u.derivToken) {
-            derivApi.authorize(u.derivToken);
-          }
           setActiveTab('dashboard');
         }} />
       </ErrorBoundary>

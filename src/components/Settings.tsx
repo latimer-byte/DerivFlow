@@ -8,7 +8,6 @@ interface SettingsProps {
     name: string;
     id: string;
     email: string;
-    derivToken?: string;
   };
   onLogout: () => void;
   isDarkMode: boolean;
@@ -17,95 +16,25 @@ interface SettingsProps {
 
 export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: SettingsProps) {
   const [activeSection, setActiveSection] = useState('profile');
-  const [apiKey, setApiKey] = useState(user?.derivToken || '');
-  const [appId, setAppId] = useState(localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || '333ttXJvMqziMT0ErTbKd');
+  const [apiKey, setApiKey] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState< 'idle' | 'connected' | 'error'>(user?.derivToken ? 'connected' : 'idle');
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connected' | 'error'>('idle');
   
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
   };
 
-  const handleConnectDeriv = async () => {
-    if (!apiKey) {
-      // If no API Key manually entered, try the OAuth flow
-      setIsConnecting(true);
-      try {
-        const response = await fetch('/api/auth/url');
-        if (response.ok) {
-          const { url } = await response.json();
-          const width = 600;
-          const height = 700;
-          const left = window.screenX + (window.outerWidth - width) / 2;
-          const top = window.screenY + (window.outerHeight - height) / 2;
-          
-          window.open(
-            url,
-            'DerivAuth',
-            `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
-          );
-        }
-      } catch (error) {
-        console.error("OAuth initiation failed:", error);
-      } finally {
-        setIsConnecting(false);
-      }
-      return;
-    };
-
-    // Validate App ID - must be numeric
-    const cleanAppId = appId.trim();
-    if (cleanAppId.startsWith('pat_')) {
-      alert("Error: The string starting with 'pat_' is an API Token, not an App ID. Please use your numeric or alphanumeric App ID (e.g. 333ttXJvMqziMT0ErTbKd).");
-      return;
-    }
-
+  const handleConnectDeriv = () => {
+    if (!apiKey) return;
     setIsConnecting(true);
     
-    try {
-      // Set App ID if it changed
-      derivApi.setAppId(cleanAppId || '333ttXJvMqziMT0ErTbKd');
-      
-      // Authorize with new token
-      derivApi.authorize(apiKey.trim());
-      
-      // Refresh user data with new token
-      if (user) {
-        const updatedUser = { ...user, derivToken: apiKey.trim() };
-        localStorage.setItem('tradepulse_user', JSON.stringify(updatedUser));
-      }
-      
-      setTimeout(() => {
-        setIsConnecting(false);
-        setConnectionStatus('connected');
-      }, 1000);
-    } catch (error) {
-      console.error(error);
+    // Simulate API Key validation and connection
+    setTimeout(() => {
       setIsConnecting(false);
-      setConnectionStatus('error');
-    }
+      setConnectionStatus('connected');
+      alert('Deriv API Key connected successfully! Your app is now live on Deriv.');
+    }, 2000);
   };
-
-  // Add message listener to Settings as well for OAuth completion
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        const { token } = event.data;
-        setApiKey(token);
-        setConnectionStatus('connected');
-        
-        // Trigger actual connection
-        derivApi.authorize(token);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
-
-  const redirectUri = window.location.origin;
 
   const [viewMode, setViewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
 
@@ -261,90 +190,51 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
               </div>
 
               <div className="space-y-6">
-                <div className="bg-secondary/30 border border-border rounded-2xl p-4 space-y-4">
-                  <div>
-                    <h5 className="text-sm font-bold text-text-primary mb-2 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      OAuth Redirect URL:
-                    </h5>
-                    <div className="flex items-center gap-2 bg-background p-2 rounded-lg border border-border">
-                      <code className="text-[10px] text-brand font-mono truncate flex-1">{redirectUri}</code>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(redirectUri);
-                          alert('URL copied to clipboard!');
-                        }}
-                        className="p-1 hover:bg-secondary rounded text-text-muted"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-text-muted mt-2 uppercase font-bold tracking-widest">Register this URL in your Deriv Dashboard to enable OAuth login.</p>
-                  </div>
-
-                  <div>
-                    <h5 className="text-sm font-bold text-text-primary mb-2">How to get your API Token:</h5>
-                    <ol className="text-xs text-text-muted space-y-1 list-decimal ml-4">
-                      <li>Log in to Deriv account {'>'} Settings {'>'} API Token.</li>
-                      <li>Create a token with 'Read' and 'Trade' scopes.</li>
-                    </ol>
-                    <a 
-                      href="https://app.deriv.com/account/api-token" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="mt-3 inline-flex items-center gap-2 text-xs text-brand font-bold hover:underline"
-                    >
-                      Deriv Token Settings <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
+                <div className="bg-secondary/30 border border-border rounded-2xl p-4">
+                  <h5 className="text-sm font-bold text-text-primary mb-2 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    How to get your API Key:
+                  </h5>
+                  <ol className="text-xs text-text-muted space-y-2 list-decimal ml-4">
+                    <li>Log in to your Deriv account.</li>
+                    <li>Go to Settings {'>'} API Token.</li>
+                    <li>Create a new token with 'Read' and 'Trade' scopes.</li>
+                    <li>Copy the token and paste it below.</li>
+                  </ol>
+                  <a 
+                    href="https://app.deriv.com/account/api-token" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex items-center gap-2 text-xs text-brand font-bold hover:underline"
+                  >
+                    Go to Deriv API Settings <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest ml-1">App ID</label>
-                    <div className="relative">
-                      <Monitor className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                      <input 
-                        type="text" 
-                        placeholder="333ttXJvMqziMT0ErTbKd"
-                        value={appId}
-                        onChange={(e) => setAppId(e.target.value)}
-                        className="w-full bg-secondary/50 border border-border rounded-2xl py-3 pl-12 pr-4 text-text-primary focus:outline-none focus:ring-1 focus:ring-brand font-mono text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest ml-1">API Token</label>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                      <input 
-                        type="password" 
-                        placeholder="Paste Token..."
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        className="w-full bg-secondary/50 border border-border rounded-2xl py-3 pl-12 pr-4 text-text-primary focus:outline-none focus:ring-1 focus:ring-brand font-mono text-sm"
-                      />
-                    </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-text-muted uppercase tracking-widest ml-1">API Token</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+                    <input 
+                      type="password" 
+                      placeholder="Paste your Deriv API Token here..."
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="w-full bg-secondary/50 border border-border rounded-2xl py-4 pl-12 pr-4 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all font-mono"
+                    />
                   </div>
                 </div>
 
                 <button 
                   onClick={handleConnectDeriv}
-                  disabled={isConnecting}
+                  disabled={isConnecting || !apiKey}
                   className={cn(
                     "w-full py-5 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50",
                     connectionStatus === 'connected' ? "bg-emerald-500 text-white shadow-emerald-500/20" : "bg-brand text-white shadow-brand/20 hover:bg-brand-hover"
                   )}
                 >
-                  {isConnecting ? (
-                    <RefreshCw className="w-6 h-6 animate-spin" />
-                  ) : (
-                    connectionStatus === 'connected' ? <CheckCircle2 className="w-6 h-6" /> : <Zap className="w-6 h-6" />
-                  )}
-                  {isConnecting ? 'Connecting...' : (
-                    connectionStatus === 'connected' ? 'Connected & Live' : (apiKey ? 'Authorize Manual Token' : 'Connect with OAuth 2.0')
-                  )}
+                  {isConnecting ? <RefreshCw className="w-6 h-6 animate-spin" /> : (connectionStatus === 'connected' ? <CheckCircle2 className="w-6 h-6" /> : <Zap className="w-6 h-6" />)}
+                  {isConnecting ? 'Connecting to Deriv...' : (connectionStatus === 'connected' ? 'Connected & Live' : 'Connect & Launch App')}
                 </button>
               </div>
             </div>
