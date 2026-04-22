@@ -339,8 +339,32 @@ export default function App() {
       // Clean up URL and redirect to root if we were on /callback
       const finalPath = window.location.pathname === '/callback' ? '/' : window.location.pathname;
       window.history.replaceState({}, document.title, finalPath);
+    } else if (!user && import.meta.env.VITE_DERIV_TOKEN) {
+      // Auto-initialize if an environment token is provided but no user session exists
+      const envToken = import.meta.env.VITE_DERIV_TOKEN;
+      console.log('Environment Deriv token detected, initializing session...');
+      
+      const initEnvSession = async () => {
+        try {
+          const firebaseUser = await signInAnonymously();
+          const userData = {
+            name: 'Deriv Pro User',
+            id: `PAT-${envToken.substring(envToken.length - 4)}`,
+            email: 'deriv-pro-account',
+            uid: firebaseUser.uid,
+            authType: 'deriv',
+            derivToken: envToken
+          };
+          setUser(userData);
+          localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+          derivApi.authorize(envToken);
+        } catch (error) {
+          console.error("Failed to initialize environment session", error);
+        }
+      };
+      initEnvSession();
     }
-  }, []);
+  }, [user]);
 
   // Initialize market data
   useEffect(() => {

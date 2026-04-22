@@ -36,7 +36,7 @@ class DerivService {
   private activeSubscriptions: Map<string, string> = new Map(); // symbol -> subscriptionId
   private subscriptionCounts: Map<string, number> = new Map(); // symbol -> count
   private reqIdCounter = 0;
-  private token: string | null = localStorage.getItem('deriv_token');
+  private token: string | null = localStorage.getItem('deriv_token') || import.meta.env.VITE_DERIV_TOKEN || null;
   private isAuthorized = false;
 
   constructor() {
