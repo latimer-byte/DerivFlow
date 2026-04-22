@@ -120,6 +120,10 @@ export async function testConnection() {
 // Auth Helpers
 export const signInWithGoogle = async () => {
   try {
+    if (auth?.isMock) {
+      console.warn("Using mock Google sign-in");
+      return { uid: 'mock-google-user', email: 'mock@example.com', displayName: 'Mock User' };
+    }
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error) {
@@ -135,6 +139,10 @@ export const logout = () => {
 
 export const signInAnonymously = async () => {
   try {
+    if (auth?.isMock) {
+      console.warn("Using mock anonymous sign-in");
+      return { uid: 'mock-user-' + Math.random().toString(36).substring(7), isAnonymous: true };
+    }
     const result = await firebaseSignInAnonymously(auth);
     return result.user;
   } catch (error) {

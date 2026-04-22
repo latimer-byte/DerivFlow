@@ -168,9 +168,18 @@ class DerivService {
       if (data.authorize === undefined && this.token && !this.isAuthorized) {
         this.messageQueue.push(data);
       } else {
-        this.socket.send(JSON.stringify(data));
+        try {
+          this.socket.send(JSON.stringify(data));
+        } catch (e) {
+          console.error('Failed to send message, queueing instead:', e);
+          this.messageQueue.push(data);
+        }
       }
     } else {
+      // Prevent multiple authorize requests in queue to avoid redundancy
+      if (data.authorize !== undefined) {
+        this.messageQueue = this.messageQueue.filter(m => m.authorize === undefined);
+      }
       this.messageQueue.push(data);
     }
   }
@@ -179,7 +188,7 @@ class DerivService {
     this.token = token;
     localStorage.setItem('deriv_token', token);
     this.isAuthorized = false;
-    this.socket?.send(JSON.stringify({ authorize: token }));
+    this.send({ authorize: token });
   }
 
   public setAppId(appId: string) {
