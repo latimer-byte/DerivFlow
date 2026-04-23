@@ -47,11 +47,12 @@ export function Auth({ onLogin }: AuthProps) {
       response_type: 'code',
       client_id: clientId,
       redirect_uri: redirectUri,
-      scope: 'trade account_manage',
+      scope: 'read trade payments',
       state: state,
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
-      app_id: legacyAppId // Optional legacy support
+      brand: 'deriv',
+      l: 'EN'
     });
 
     if (isSignup) {
@@ -148,6 +149,9 @@ export function Auth({ onLogin }: AuthProps) {
             </h1>
             <p className="text-text-muted text-xs font-bold uppercase tracking-widest text-center md:text-left">
               {isLogin ? 'Authenticate with your Deriv credentials' : 'Create an account via Deriv to start trading'}
+            </p>
+            <p className="text-[10px] text-brand/60 font-mono text-center md:text-left mt-2">
+              Note: Ensure {window.location.origin}/callback is registered in your Deriv dashboard.
             </p>
           </div>
 
