@@ -3,7 +3,7 @@
  * Handles WebSocket connection to Deriv API
  */
 
-const DEFAULT_APP_ID = '33433jm6aon9vgTQHB9vn';
+const DEFAULT_APP_ID = '33433';
 const getAppId = () => {
   const id = localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || DEFAULT_APP_ID;
   return id;

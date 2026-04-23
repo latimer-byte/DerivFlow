@@ -236,7 +236,7 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
                     value={localStorage.getItem('deriv_app_id') || ''}
                     onChange={(e) => {
                       const newId = e.target.value;
-                      if (/^[a-zA-Z0-9_-]+$/.test(newId) || newId === '') {
+                      if (/^[0-9]+$/.test(newId) || newId === '') {
                         localStorage.setItem('deriv_app_id', newId);
                         if (newId) derivApi.setAppId(newId);
                         // Force update local state

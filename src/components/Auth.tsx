@@ -38,7 +38,7 @@ export function Auth({ onLogin }: AuthProps) {
 
   const handleDerivLogin = () => {
     // Priority: Env variable > Local storage > Default fallback
-    const appId = import.meta.env.VITE_DERIV_APP_ID || localStorage.getItem('deriv_app_id') || '33433jm6aon9vgTQHB9vn';
+    const appId = import.meta.env.VITE_DERIV_APP_ID || localStorage.getItem('deriv_app_id') || '33433';
     
     // Dynamically determine redirect URL
     const callbackPath = '/callback';
