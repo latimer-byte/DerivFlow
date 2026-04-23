@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
 import { Brain, TrendingUp, TrendingDown, Minus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
+import { getMarketSentiment } from '@/services/geminiService';
 
 interface AISentimentProps {
   symbol: string;
@@ -19,42 +19,12 @@ export function AISentiment({ symbol, history }: AISentimentProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const analyzeSentiment = async () => {
-    if (history.length < 10) return;
+    if (history.length < 10 || isLoading) return;
     
     setIsLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      // Prepare data for the model
-      const prices = history.slice(-50).map(h => h.quote).join(', ');
-      
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Analyze the following price data for ${symbol} and provide a market sentiment analysis.
-        Prices (last 50 ticks): ${prices}
-        
-        Provide the result in JSON format with:
-        - score: a number from -100 (extremely bearish) to 100 (extremely bullish)
-        - label: "Bullish", "Bearish", or "Neutral"
-        - reason: a concise 1-sentence explanation of the trend
-        - confidence: a percentage (0-100)`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              score: { type: Type.NUMBER },
-              label: { type: Type.STRING },
-              reason: { type: Type.STRING },
-              confidence: { type: Type.NUMBER }
-            },
-            required: ["score", "label", "reason", "confidence"]
-          }
-        }
-      });
-
-      const result = JSON.parse(response.text);
-      setSentiment(result);
+      const result = await getMarketSentiment(symbol, history);
+      if (result) setSentiment(result);
     } catch (error) {
       console.error('AI Sentiment Analysis failed:', error);
     } finally {

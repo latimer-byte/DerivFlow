@@ -6,6 +6,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', id: 'dashboard' },
   { icon: BarChart3, label: 'Markets', id: 'markets' },
   { icon: Zap, label: 'Analytics', id: 'analytics' },
+  { icon: MessageSquareCode, label: 'AI Chat', id: 'chat' },
   { icon: Wallet, label: 'Assets', id: 'assets' },
   { icon: History, label: 'History', id: 'history' },
   { icon: Settings, label: 'Settings', id: 'settings' },

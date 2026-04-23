@@ -8,6 +8,7 @@ import { BottomPanel } from './components/BottomPanel';
 import { Markets } from './components/Markets';
 import { Assets } from './components/Assets';
 import { Settings } from './components/Settings';
+import { Chat } from './components/Chat';
 import { History } from './components/History';
 import { Analytics } from './components/Analytics';
 import { Auth } from './components/Auth';
@@ -633,6 +634,18 @@ export default function App() {
               onLogout={handleLogout}
               isDarkMode={isDarkMode} 
               setIsDarkMode={setIsDarkMode} 
+            />
+          </div>
+        );
+      case 'chat':
+        return (
+          <div className="p-8 h-screen overflow-hidden pb-32">
+            <Chat 
+              user={user} 
+              marketContext={{ 
+                symbol: selectedSymbol, 
+                price: currentTick?.quote || history[history.length - 1]?.quote || 0 
+              }} 
             />
           </div>
         );
