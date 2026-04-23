@@ -102,7 +102,15 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const returnedState = params.get('state');
+    const error = params.get('error');
     const path = window.location.pathname;
+
+    if (error) {
+      console.error('OAuth error from Deriv:', error);
+      alert(`Authentication Aborted: ${error}. Please try again.`);
+      window.history.replaceState({}, document.title, "/");
+      return;
+    }
 
     if (code && (path === '/callback' || path === '/')) {
       const storedState = sessionStorage.getItem('oauth_state');
@@ -137,36 +145,54 @@ export default function App() {
 
           const data = await response.json();
           if (data.access_token) {
-            // Success! Link to Firebase for Firestore persistence
+            console.log('Token exchange successful, linking session...');
+            
+            // Create user data early so we have a fallback
+            let userData = {
+              name: 'Deriv Trader',
+              id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+              email: 'deriv-account',
+              uid: `deriv_${Date.now()}`,
+              authType: 'deriv' as const,
+              derivToken: data.access_token
+            };
+
+            // Attempt Firebase linkage for persistence
             try {
               const firebaseUser = await signInAnonymously();
-              const userData = {
-                name: 'Deriv Trader',
-                id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
-                email: 'deriv-account',
-                uid: firebaseUser.uid,
-                authType: 'deriv',
-                derivToken: data.access_token
-              };
-              setUser(userData);
-              localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+              userData.uid = firebaseUser.uid;
             } catch (fbError) {
-              console.error("Firebase linkage failed, using local session:", fbError);
+              console.warn("Firebase linkage failed, using local-only session:", fbError);
             }
 
-            // Authorize Deriv API
-            await derivApi.authorize(data.access_token);
+            // Set user immediately to trigger dashboard transition
+            console.log('Setting user state and transitioning to terminal...');
+            setUser(userData);
+            localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+
+            // Authorize Deriv API (Background authorization)
+            try {
+              await derivApi.authorize(data.access_token);
+              console.log('Deriv API authorized successfully');
+            } catch (authError) {
+              console.error('Deriv API background authorization failed:', authError);
+            }
             
             sessionStorage.removeItem('oauth_state');
             sessionStorage.removeItem('pkce_code_verifier');
             
-            // Clean URL
+            // Clean URL and redirect to dashboard
             window.history.replaceState({}, document.title, "/");
+            setActiveTab('dashboard');
           } else {
-            console.error('Token exchange failed:', data);
+            console.error('Token exchange failed: Response missing access token', data);
+            alert('Authentication failed: Could not exchange authorization code for an access token. Please try again.');
+            setIsReady(true);
+            window.history.replaceState({}, document.title, "/");
           }
         } catch (error) {
           console.error('Error during token exchange:', error);
+          alert('A network error occurred during authentication. Check your connection.');
         } finally {
           setIsReady(true);
         }
@@ -544,6 +570,29 @@ export default function App() {
       setUser(null);
     }
   };
+
+  if (!user && (window.location.pathname === '/callback' || window.location.search.includes('code='))) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center">
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="w-24 h-24 bg-brand rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-brand/20"
+        >
+          <Zap className="text-background w-12 h-12 fill-background animate-pulse" />
+        </motion.div>
+        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-text-primary mb-2">Synchronizing Terminal</h2>
+        <p className="text-text-muted text-xs font-bold uppercase tracking-widest leading-relaxed max-w-xs">
+          Handshaking with Deriv Cloud and securing your session variables...
+        </p>
+        <div className="mt-12 flex gap-2">
+          <div className="w-2 h-2 rounded-full bg-brand animate-bounce" />
+          <div className="w-2 h-2 rounded-full bg-brand animate-bounce [animation-delay:0.2s]" />
+          <div className="w-2 h-2 rounded-full bg-brand animate-bounce [animation-delay:0.4s]" />
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
