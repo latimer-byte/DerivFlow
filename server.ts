@@ -53,6 +53,50 @@ async function startServer() {
     }
   });
 
+  // Proxy route for Deriv Accounts
+  app.get("/api/deriv/accounts", async (req, res) => {
+    const token = req.headers.authorization;
+    const appId = req.headers['x-deriv-app-id'] || '33433';
+
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const response = await fetch("https://api.derivws.com/trading/v1/options/accounts", {
+        headers: {
+          "Authorization": token,
+          "Deriv-App-ID": appId.toString()
+        }
+      });
+      const data = await response.json();
+      res.status(response.status).json(data);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch accounts" });
+    }
+  });
+
+  // Proxy route for Deriv OTP
+  app.post("/api/deriv/otp/:accountId", async (req, res) => {
+    const { accountId } = req.params;
+    const token = req.headers.authorization;
+    const appId = req.headers['x-deriv-app-id'] || '33433';
+
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const response = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
+        method: "POST",
+        headers: {
+          "Authorization": token,
+          "Deriv-App-ID": appId.toString()
+        }
+      });
+      const data = await response.json();
+      res.status(response.status).json(data);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch OTP" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

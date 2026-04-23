@@ -81,11 +81,13 @@ export default function App() {
     return derivApi.onStatusChange((status) => {
       if (status === 'authorized') {
         const savedUser = localStorage.getItem('tradepulse_user');
+        const accountId = derivApi.getAccountId();
+        
         if (!savedUser) {
           const newUser = {
             name: 'Deriv Trader',
-            id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
-            uid: `deriv_${Math.random().toString(36).substring(2, 10)}`,
+            id: accountId || `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+            uid: `deriv_${accountId || Math.random().toString(36).substring(2, 10)}`,
             authType: 'deriv'
           };
           setUser(newUser);
