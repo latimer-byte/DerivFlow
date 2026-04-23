@@ -113,7 +113,7 @@ export default function App() {
       return;
     }
 
-    if (code && (path === '/callback' || path === '/')) {
+    if (code && (path.includes('callback') || path === '/')) {
       const storedState = sessionStorage.getItem('oauth_state');
       const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
       
@@ -603,6 +603,7 @@ export default function App() {
         <Auth onLogin={(u) => {
           setUser(u);
           setActiveTab('dashboard');
+          if (u.derivToken) derivApi.authorize(u.derivToken);
         }} />
       </ErrorBoundary>
     );

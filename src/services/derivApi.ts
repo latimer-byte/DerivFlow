@@ -200,14 +200,22 @@ class DerivService {
   }
 
   /**
-   * Modern Authorization Workflow via REST + OTP
+   * Modern Authorization Workflow via REST + OTP with legacy API token fallback
    */
   public async authorize(token: string) {
     this.token = token;
     localStorage.setItem('deriv_token', token);
     
+    // Smart Detection: Legacy API tokens are shorter than OAuth tokens
+    const isLegacyToken = token.length < 50;
+
     try {
-      // 1. Fetch available accounts
+      if (isLegacyToken) {
+        console.log("Deriv: Short token detected, skipping Hub REST and using WebSocket auth...");
+        return await this.legacyAuthorize(token);
+      }
+
+      // 1. Fetch available accounts (Modern Hub API)
       const accountsRes = await fetch('/api/deriv/accounts', {
         headers: { 
           'Authorization': `Bearer ${token}`,
@@ -215,11 +223,18 @@ class DerivService {
         }
       });
       
-      if (!accountsRes.ok) throw new Error("Failed to fetch Deriv accounts");
+      if (!accountsRes.ok) {
+        throw new Error("REST Hub API rejected token. Checking fallback...");
+      }
       
       const accountsData = await accountsRes.json();
-      const accounts = accountsData.data || [];
       
+      // If Deriv returned an error even with 200 OK (proxy logic)
+      if (accountsData.error) {
+        throw new Error(`REST Hub Error: ${accountsData.error.message || "Unknown"}`);
+      }
+
+      const accounts = accountsData.data || [];
       if (accounts.length === 0) throw new Error("No trading accounts found for this user");
 
       // 2. Select account (demo preferred for this environment)
@@ -253,12 +268,68 @@ class DerivService {
       } else {
         throw new Error("OTP response missing WebSocket URL");
       }
-    } catch (error) {
-      console.error("Deriv Authentication Error:", error);
-      this.isAuthorized = false;
-      this.otpUrl = null;
-      throw error;
+    } catch (error: any) {
+      console.warn("Modern Hub Auth failed, falling back to WebSocket authorize:", error.message);
+      
+      // FALLBACK: Traditional WebSocket authorize
+      try {
+        const authData = await this.legacyAuthorize(token);
+        console.log("Deriv: WebSocket Auth Fallback Successful:", authData);
+        return authData;
+      } catch (fallbackError: any) {
+        console.error("Deriv Authentication Total Failure:", fallbackError);
+        this.isAuthorized = false;
+        this.otpUrl = null;
+        throw fallbackError;
+      }
     }
+  }
+
+  /**
+   * Traditional WebSocket Authorize
+   */
+  private async legacyAuthorize(token: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      // Ensure we are connected first
+      if (!this.isConnected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        this.connect();
+        // Wait for connection
+        const checkConn = setInterval(() => {
+          if (this.isConnected && this.socket?.readyState === WebSocket.OPEN) {
+            clearInterval(checkConn);
+            this.executeLegacyAuth(token, resolve, reject);
+          }
+        }, 500);
+        
+        // Timeout after 10s
+        setTimeout(() => {
+          clearInterval(checkConn);
+          reject(new Error("Connection timeout during WebSocket auth fallback"));
+        }, 10000);
+      } else {
+        this.executeLegacyAuth(token, resolve, reject);
+      }
+    });
+  }
+
+  private executeLegacyAuth(token: string, resolve: Function, reject: Function) {
+    const reqId = ++this.reqIdCounter;
+    const listener = (data: any) => {
+      if (data.req_id === reqId) {
+        this.off(`req_${reqId}`, listener);
+        if (data.error) {
+          reject(new Error(data.error.message));
+        } else {
+          this.isAuthorized = true;
+          this.setStatus('authorized');
+          // For legacy, we use the existing socket
+          console.log("Deriv: WebSocket Authorized successfully");
+          resolve(data.authorize);
+        }
+      }
+    };
+    this.on(`req_${reqId}`, listener);
+    this.send({ authorize: token, req_id: reqId });
   }
 
   public setAppId(appId: string) {

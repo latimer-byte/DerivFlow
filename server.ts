@@ -69,20 +69,28 @@ async function startServer() {
         }
       });
       
-      const data = await response.json();
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.warn("Deriv returned non-JSON response:", text);
+        data = { error: { message: text || "Invalid response from Deriv" } };
+      }
       
       if (!response.ok) {
         console.error("Deriv Accounts Fetch Failed:", {
           status: response.status,
-          statusText: response.statusText,
           error: data
         });
       }
       
       res.status(response.status).json(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Internal Proxy Error (Accounts):", error);
-      res.status(500).json({ error: "Failed to fetch accounts" });
+      res.status(500).json({ error: error.message || "Failed to fetch accounts" });
     }
   });
 
@@ -104,7 +112,16 @@ async function startServer() {
         }
       });
       
-      const data = await response.json();
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.warn("Deriv (OTP) returned non-JSON response:", text);
+        data = { error: { message: text || "Invalid response from Deriv" } };
+      }
       
       if (!response.ok) {
         console.error("Deriv OTP Request Failed:", {
@@ -114,9 +131,9 @@ async function startServer() {
       }
       
       res.status(response.status).json(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Internal Proxy Error (OTP):", error);
-      res.status(500).json({ error: "Failed to fetch OTP" });
+      res.status(500).json({ error: error.message || "Failed to fetch OTP" });
     }
   });
 
@@ -134,6 +151,43 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  // OAuth Callback Bridge (for popup flow)
+  app.get(["/callback", "/api/auth/callback"], (req, res) => {
+    const { code, state, error } = req.query;
+    
+    // Return a simple HTML page that communicates with the main window
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>Authentication Sync</title></head>
+        <body style="background: #0f1115; color: #ffffff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+          <div style="text-align: center;">
+            <div style="width: 40px; height: 40px; border: 3px solid rgba(255,100,100,0.3); border-top-color: #ff444f; border-radius: 50%; animate: spin 1s linear infinite; margin-bottom: 20px; display: inline-block;"></div>
+            <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+            <p id="status" style="font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px;">Syncing session...</p>
+          </div>
+          <script>
+            const data = { 
+              type: 'DERIV_AUTH_COMPLETE', 
+              code: ${JSON.stringify(code)}, 
+              state: ${JSON.stringify(state)},
+              error: ${JSON.stringify(error)}
+            };
+            
+            if (window.opener) {
+              window.opener.postMessage(data, '*');
+              document.getElementById('status').innerText = 'Authenticated. Closing...';
+              setTimeout(() => window.close(), 1000);
+            } else {
+              document.getElementById('status').innerText = 'Handshake failed: No parent window found.';
+              setTimeout(() => window.location.href = '/', 2000);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Zap, Lock, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Zap, Lock, ArrowRight, Key } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface AuthProps {
   onLogin: (user: any) => void;
@@ -10,66 +10,118 @@ interface AuthProps {
 export function Auth({ onLogin }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [manualToken, setManualToken] = useState('');
+  const [showManual, setShowManual] = useState(false);
+
+  // Listen for message from OAuth popup
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'DERIV_AUTH_COMPLETE') {
+        const { code, state, error } = event.data;
+        
+        if (error) {
+          console.error('OAuth popup returned error:', error);
+          alert(`Authentication failed: ${error}`);
+          setLoading(false);
+          return;
+        }
+
+        if (code) {
+          // Trigger the App.tsx callback logic by updating URL state or just calling a handler
+          // For simplicity, we'll just redirect the main window to the callback path with params
+          const url = new URL(window.location.origin + '/callback');
+          url.searchParams.set('code', code);
+          url.searchParams.set('state', state);
+          window.location.href = url.toString();
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const handleDerivLogin = async (isSignup = false) => {
     setLoading(true);
     try {
-      // Modern Deriv OAuth uses client_id (alphanumeric)
-    // We prioritize environment variables for custom app deployment
-    const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
-    
-    // 1. Prepare redirect URL - Normalized to prevent trailing slash issues
-    // Deriv Dashboard requires an EXACT string match. 
-    // We trim any trailing slashes from origin to ensure consistency.
-    const origin = window.location.origin.replace(/\/$/, '');
-    const callbackPath = '/callback';
-    const redirectUri = import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + callbackPath);
-    
-    console.log('Initiating Deriv OAuth with:', { clientId, redirectUri });
+      const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
+      const origin = window.location.origin.replace(/\/$/, '');
+      const callbackPath = '/callback';
+      const redirectUri = import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + callbackPath);
+      
+      // 1. PKCE
+      const array = crypto.getRandomValues(new Uint8Array(64));
+      const codeVerifier = Array.from(array)
+        .map(v => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'[v % 66])
+        .join('');
 
-    // 2. Generate PKCE parameters
-    const array = crypto.getRandomValues(new Uint8Array(64));
-    const codeVerifier = Array.from(array)
-      .map(v => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'[v % 66])
-      .join('');
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier));
+      const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
 
-    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier));
-    const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+      const state = crypto.getRandomValues(new Uint8Array(16))
+        .reduce((s, b) => s + b.toString(16).padStart(2, '0'), '');
 
-    const state = crypto.getRandomValues(new Uint8Array(16))
-      .reduce((s, b) => s + b.toString(16).padStart(2, '0'), '');
+      sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+      sessionStorage.setItem('oauth_state', state);
 
-    // 2. Store for later verification
-    sessionStorage.setItem('pkce_code_verifier', codeVerifier);
-    sessionStorage.setItem('oauth_state', state);
+      const baseUrl = "https://auth.deriv.com/oauth2/auth";
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        scope: 'read trade payments',
+        state: state,
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+        brand: 'deriv',
+        l: 'EN'
+      });
 
-    const baseUrl = "https://auth.deriv.com/oauth2/auth";
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      scope: 'read trade payments',
-      state: state,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
-      brand: 'deriv',
-      l: 'EN'
-    });
+      if (isSignup) params.append('prompt', 'registration');
 
-    if (isSignup) {
-      params.append('prompt', 'registration');
-    }
+      const derivLoginUrl = `${baseUrl}?${params.toString()}`;
+      
+      // Open in POPUP (Mandatory for AI Studio iframe stability)
+      const width = 600;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+      
+      const popup = window.open(
+        derivLoginUrl, 
+        'DerivLogin', 
+        `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,toolbar=no,menubar=no,scrollbars=yes`
+      );
 
-    const derivLoginUrl = `${baseUrl}?${params.toString()}`;
-    console.log('Redirecting to Deriv OAuth:', derivLoginUrl);
-    window.location.href = derivLoginUrl;
+      if (!popup) {
+        alert('Popup blocked! Please allow popups to continue authentication.');
+        setLoading(false);
+      }
     } catch (error) {
       console.error('Deriv OAuth initiation failed:', error);
       setLoading(false);
     }
+  };
+
+  const handleManualTokenLogin = () => {
+    if (!manualToken.trim()) return;
+    
+    // Simulate successful OAuth result with direct token
+    const userData = {
+      name: 'Deriv Trader',
+      id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+      email: 'manual-token',
+      uid: `manual_${Date.now()}`,
+      authType: 'deriv' as const,
+      derivToken: manualToken.trim()
+    };
+    
+    onLogin(userData);
+    localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+    localStorage.setItem('deriv_token', manualToken.trim());
   };
 
   return (
@@ -154,14 +206,29 @@ export function Auth({ onLogin }: AuthProps) {
             <p className="text-text-muted text-xs font-bold uppercase tracking-widest text-center md:text-left">
               {isLogin ? 'Authenticate with your Deriv credentials' : 'Create an account via Deriv to start trading'}
             </p>
-            <div className="bg-brand/5 border border-brand/20 rounded-xl p-4 space-y-2 mt-4">
-              <p className="text-[10px] text-brand/80 font-bold uppercase tracking-widest">Connection Check</p>
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] text-text-muted font-mono break-all">Redirect URI: <span className="text-text-primary">{window.location.origin.replace(/\/$/, '')}/callback</span></span>
-                <span className="text-[9px] text-text-muted font-mono break-all">Client ID: <span className="text-text-primary">{import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm... (Default)'}</span></span>
+            <div className="bg-brand/5 border border-brand/20 rounded-xl p-4 space-y-3 mt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-brand font-black uppercase tracking-widest">OAuth Config Check</p>
+                <div className="flex gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand animate-ping" />
+                </div>
               </div>
-              <p className="text-[9px] text-text-muted italic leading-relaxed">
-                Ensure these values match your OAuth 2.0 Client registration in the Deriv Developer Dashboard.
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <p className="text-[9px] text-text-muted font-bold uppercase">Required Redirect URI:</p>
+                  <code className="text-[9px] text-text-primary bg-background p-1.5 rounded border border-border block break-all leading-relaxed font-mono">
+                    {window.location.origin.replace(/\/$/, '')}/callback
+                  </code>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[9px] text-text-muted font-bold uppercase">Active Client ID:</p>
+                  <code className="text-[9px] text-text-primary bg-background p-1.5 rounded border border-border block font-mono">
+                    {import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn'}
+                  </code>
+                </div>
+              </div>
+              <p className="text-[9px] text-text-muted italic leading-relaxed pt-1">
+                Note: Ensure the exact URL above is registered in your <a href="https://api.deriv.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-brand hover:underline font-bold">Deriv Developer Dashboard</a>.
               </p>
             </div>
           </div>
@@ -184,6 +251,54 @@ export function Auth({ onLogin }: AuthProps) {
                 </>
               )}
             </button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest">
+                <span className="bg-background px-3 text-text-muted">Or sync via API Token</span>
+              </div>
+            </div>
+
+            {!showManual ? (
+              <button 
+                onClick={() => setShowManual(true)}
+                className="w-full py-4 border border-border hover:border-brand/40 rounded-2xl text-[10px] font-black text-text-muted hover:text-brand uppercase tracking-widest transition-all"
+              >
+                Enter API Token Manually
+              </button>
+            ) : (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-3"
+              >
+                <div className="relative">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                  <input 
+                    type="password"
+                    placeholder="PASTE DERIV API TOKEN"
+                    value={manualToken}
+                    onChange={(e) => setManualToken(e.target.value)}
+                    className="w-full bg-secondary/30 border border-border focus:border-brand rounded-2xl py-4 pl-12 pr-4 text-xs font-mono text-text-primary outline-none transition-all"
+                  />
+                </div>
+                <button 
+                  onClick={handleManualTokenLogin}
+                  disabled={!manualToken.trim()}
+                  className="w-full py-4 bg-brand text-background rounded-2xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 disabled:opacity-50 transition-all"
+                >
+                  Verify $ Authorized Session
+                </button>
+                <button 
+                  onClick={() => setShowManual(false)}
+                  className="w-full text-[9px] font-bold text-text-muted hover:text-text-primary uppercase tracking-widest text-center"
+                >
+                  Cancel
+                </button>
+              </motion.div>
+            )}
 
             <div className="bg-card/50 border border-border p-6 rounded-2xl space-y-4">
               <div className="flex items-start gap-3">
