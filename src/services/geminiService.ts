@@ -1,9 +1,19 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+// Standard way to get API key in Vite/React environment for this platform
+const getApiKey = () => {
+  try {
+    return process.env.GEMINI_API_KEY || "";
+  } catch (e) {
+    return "";
+  }
+};
+
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
 export async function getMarketInsights(symbol: string, currentPrice: number, history: any[]) {
-  if (!process.env.GEMINI_API_KEY) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
     return "AI insights are currently unavailable. Please configure your GEMINI_API_KEY.";
   }
 
@@ -19,10 +29,10 @@ export async function getMarketInsights(symbol: string, currentPrice: number, hi
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash", // Using a fast model for real-time feel
+      model: "gemini-3-flash-preview",
       contents: prompt,
     });
-
+    
     return response.text || "Unable to generate insights at this time.";
   } catch (error) {
     console.error("Gemini Error:", error);

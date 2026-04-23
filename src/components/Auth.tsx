@@ -38,7 +38,7 @@ export function Auth({ onLogin }: AuthProps) {
 
   const handleDerivLogin = () => {
     // Priority: Env variable > Local storage > Default fallback
-    const appId = import.meta.env.VITE_DERIV_APP_ID || localStorage.getItem('deriv_app_id') || '1089';
+    const appId = import.meta.env.VITE_DERIV_APP_ID || localStorage.getItem('deriv_app_id') || '33433jm6aon9vgTQHB9vn';
     
     if (!appId) {
       const manualId = window.prompt("Deriv App ID is missing. Please enter your App ID from api.deriv.com:");

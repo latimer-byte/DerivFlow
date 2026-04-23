@@ -4,18 +4,27 @@ import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot
 
 // ... (config remains same)
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "YOUR_STORAGE_BUCKET",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "YOUR_APP_ID"
 };
 
-// Initialize Firebase
+// Initialize Firebase with defaults to avoid 'undefined' errors
 let app: any;
-let auth: any;
-let db: any;
+let auth: any = {
+  isMock: true,
+  onAuthStateChanged: (cb: any) => () => {},
+  currentUser: null,
+  providerData: []
+};
+let db: any = {
+  isMock: true,
+  collection: () => ({ doc: () => ({}) }),
+  doc: () => ({})
+};
 const googleProvider = new GoogleAuthProvider();
 
 // Custom onAuthStateChanged that handles mock mode
@@ -26,35 +35,26 @@ export const onAuthStateChanged = (authInstance: any, callback: (user: User | nu
   return firebaseOnAuthStateChanged(authInstance, callback);
 };
 
+// Check if we have a real looking Firebase config
+const isFirebaseConfigured = 
+  firebaseConfig.apiKey && 
+  firebaseConfig.apiKey !== "YOUR_API_KEY" && 
+  firebaseConfig.apiKey.startsWith("AIza") &&
+  firebaseConfig.projectId && 
+  firebaseConfig.projectId !== "YOUR_PROJECT_ID";
+
 try {
-  if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+  if (isFirebaseConfigured) {
+    console.log("Firebase: Configuration detected. Attempting initialization...");
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    console.log("Firebase initialized successfully.");
   } else {
-    console.warn("Firebase config is not configured. Using mock mode.");
-    auth = {
-      isMock: true,
-      onAuthStateChanged: (cb: any) => {
-        // In mock mode, we don't have a real firebase user
-        // But we can check localStorage if we want to simulate persistence
-        return () => {};
-      },
-      currentUser: null
-    };
-    db = {
-      collection: () => ({ doc: () => ({}) }),
-      doc: () => ({})
-    };
+    console.warn("Firebase: Configuration missing or invalid (API Keys should start with 'AIza'). Using mock mode.");
   }
 } catch (e) {
-  console.error("Firebase initialization failed", e);
-  auth = { 
-    isMock: true,
-    onAuthStateChanged: (cb: any) => () => {}, 
-    currentUser: null 
-  };
-  db = {};
+  console.error("Firebase: Initialization failed", e);
 }
 
 export { auth, db, googleProvider };

@@ -14,7 +14,7 @@ import { Auth } from './components/Auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, onAuthStateChanged, signInAnonymously } from './lib/firebase';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
-import { derivApi, Tick, HistoryPoint, Candle } from './services/derivApi';
+import { derivApi, Tick, HistoryPoint, Candle, ConnectionStatus } from './services/derivApi';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 
@@ -346,7 +346,10 @@ export default function App() {
       
       const initEnvSession = async () => {
         try {
+          console.log('Attempting to sign in anonymously for environment session...');
           const firebaseUser = await signInAnonymously();
+          console.log('Anonymous sign-in successful:', firebaseUser.uid);
+          
           const userData = {
             name: 'Deriv Pro User',
             id: `PAT-${envToken.substring(envToken.length - 4)}`,
@@ -357,9 +360,10 @@ export default function App() {
           };
           setUser(userData);
           localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+          console.log('Authorizing Deriv API with environment token...');
           derivApi.authorize(envToken);
         } catch (error) {
-          console.error("Failed to initialize environment session", error);
+          console.error("Failed to initialize environment session. Error details:", error);
         }
       };
       initEnvSession();

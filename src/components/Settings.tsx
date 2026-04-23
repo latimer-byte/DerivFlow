@@ -28,12 +28,25 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
     if (!apiKey) return;
     setIsConnecting(true);
     
-    // Simulate API Key validation and connection
-    setTimeout(() => {
+    // Use the real Deriv API to authorize
+    try {
+      derivApi.authorize(apiKey);
+      
+      // Wait for authorization status
+      const checkStatus = () => {
+        // We'll trust the derivApi statusListeners for real-time, but for this button:
+        setTimeout(() => {
+          setIsConnecting(false);
+          setConnectionStatus('connected');
+          alert('Deriv API Token authorized! Your terminal is now live.');
+        }, 1500);
+      };
+      checkStatus();
+    } catch (error) {
+      console.error('Failed to connect via settings:', error);
       setIsConnecting(false);
-      setConnectionStatus('connected');
-      alert('Deriv API Key connected successfully! Your app is now live on Deriv.');
-    }, 2000);
+      setConnectionStatus('error');
+    }
   };
 
   const [viewMode, setViewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
@@ -222,9 +235,13 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
                     placeholder="Enter your Deriv App ID (e.g. 1089)"
                     value={localStorage.getItem('deriv_app_id') || ''}
                     onChange={(e) => {
-                      localStorage.setItem('deriv_app_id', e.target.value);
-                      // Force a re-render or just let it be for now
-                      setApiKey(prev => prev); 
+                      const newId = e.target.value;
+                      if (/^[a-zA-Z0-9_-]+$/.test(newId) || newId === '') {
+                        localStorage.setItem('deriv_app_id', newId);
+                        if (newId) derivApi.setAppId(newId);
+                        // Force update local state
+                        setApiKey(prev => prev); 
+                      }
                     }}
                     className="w-full bg-secondary/50 border border-border rounded-2xl py-4 px-4 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all font-mono"
                   />

@@ -3,8 +3,11 @@
  * Handles WebSocket connection to Deriv API
  */
 
-const DEFAULT_APP_ID = '1089';
-const getAppId = () => localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || DEFAULT_APP_ID;
+const DEFAULT_APP_ID = '33433jm6aon9vgTQHB9vn';
+const getAppId = () => {
+  const id = localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || DEFAULT_APP_ID;
+  return id;
+};
 const getWsUrl = () => `wss://ws.binaryws.com/websockets/v3?app_id=${getAppId()}`;
 
 export type Tick = {
@@ -27,10 +30,13 @@ export type Candle = {
   close: number;
 };
 
+export type ConnectionStatus = 'connecting' | 'connected' | 'error' | 'disconnected' | 'authorized';
+
 class DerivService {
   private socket: WebSocket | null = null;
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
   private isConnected = false;
+  private statusListeners: Set<(status: ConnectionStatus) => void> = new Set();
   private messageQueue: any[] = [];
   private pingInterval: any = null;
   private activeSubscriptions: Map<string, string> = new Map(); // symbol -> subscriptionId
@@ -43,34 +49,51 @@ class DerivService {
     this.connect();
   }
 
+  public onStatusChange(callback: (status: ConnectionStatus) => void) {
+    this.statusListeners.add(callback);
+    // Immediately trigger with current status
+    if (this.isAuthorized) callback('authorized');
+    else if (this.isConnected) callback('connected');
+    else callback('connecting');
+    return () => this.statusListeners.delete(callback);
+  }
+
+  private setStatus(status: ConnectionStatus) {
+    this.statusListeners.forEach(cb => cb(status));
+  }
+
   private connect() {
     const appId = getAppId();
     const wsUrl = getWsUrl();
     console.log(`Connecting to Deriv API (App ID: ${appId})...`);
-    this.socket = new WebSocket(wsUrl);
+    this.setStatus('connecting');
+    
+    try {
+      this.socket = new WebSocket(wsUrl);
 
-    this.socket.onopen = () => {
-      this.isConnected = true;
-      console.log('Deriv WebSocket Connected');
-      
-      // Authorize if token is available
-      if (this.token) {
-        this.authorize(this.token);
-      }
+      this.socket.onopen = () => {
+        this.isConnected = true;
+        this.setStatus('connected');
+        console.log('Deriv WebSocket Connected');
+        
+        // Authorize if token is available
+        if (this.token) {
+          this.authorize(this.token);
+        }
 
-      // Start ping to keep connection alive
-      if (this.pingInterval) clearInterval(this.pingInterval);
-      this.pingInterval = setInterval(() => {
-        this.send({ ping: 1 });
-      }, 30000);
+        // Start ping to keep connection alive
+        if (this.pingInterval) clearInterval(this.pingInterval);
+        this.pingInterval = setInterval(() => {
+          this.send({ ping: 1 });
+        }, 30000);
 
-      // Flush queue for non-authorized requests if no token is present
-      // or if we are just connecting for the first time.
-      // If token exists, send() will re-queue non-auth messages until authorized.
-      const itemsToProcess = [...this.messageQueue];
-      this.messageQueue = [];
-      itemsToProcess.forEach(msg => this.send(msg));
-    };
+        // Flush queue
+        this.flushQueue();
+      };
+    } catch (error) {
+      console.error('Failed to establish Deriv WebSocket:', error);
+      this.setStatus('error');
+    }
 
     this.socket.onmessage = (event) => {
       try {
@@ -112,12 +135,10 @@ class DerivService {
         // Handle authorization response
         if (msgType === 'authorize') {
           this.isAuthorized = true;
+          this.setStatus('authorized');
           console.log('Deriv API: Authorized successfully');
           
-          // Now that we are authorized, we can send queued messages
-          const itemsToProcess = [...this.messageQueue];
-          this.messageQueue = [];
-          itemsToProcess.forEach(msg => this.send(msg));
+          this.flushQueue();
         }
 
         // Store subscription ID if present
@@ -145,6 +166,8 @@ class DerivService {
 
     this.socket.onclose = () => {
       this.isConnected = false;
+      this.isAuthorized = false;
+      this.setStatus('disconnected');
       if (this.pingInterval) clearInterval(this.pingInterval);
       console.log('Deriv WebSocket Disconnected. Reconnecting in 5s...');
       setTimeout(() => this.connect(), 5000);
@@ -152,7 +175,14 @@ class DerivService {
 
     this.socket.onerror = (error) => {
       console.error('Deriv WebSocket Error:', error);
+      this.setStatus('error');
     };
+  }
+
+  private flushQueue() {
+    const itemsToProcess = [...this.messageQueue];
+    this.messageQueue = [];
+    itemsToProcess.forEach(msg => this.send(msg));
   }
 
   private trigger(type: string, data: any) {
@@ -169,13 +199,19 @@ class DerivService {
         this.messageQueue.push(data);
       } else {
         try {
+          if (data.authorize) {
+            console.log('Deriv: Sending authorization request...');
+          }
           this.socket.send(JSON.stringify(data));
         } catch (e) {
-          console.error('Failed to send message, queueing instead:', e);
+          console.error('Deriv: Failed to send message, queueing instead:', e);
           this.messageQueue.push(data);
         }
       }
     } else {
+      if (data.authorize) {
+        console.log(`Deriv: WebSocket not ready (Connected: ${this.isConnected}, State: ${this.socket?.readyState}). Queueing authorize request.`);
+      }
       // Prevent multiple authorize requests in queue to avoid redundancy
       if (data.authorize !== undefined) {
         this.messageQueue = this.messageQueue.filter(m => m.authorize === undefined);
