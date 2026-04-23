@@ -18,6 +18,7 @@ import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, lim
 import { derivApi, Tick, HistoryPoint, Candle, ConnectionStatus } from './services/derivApi';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
+import { Zap } from 'lucide-react';
 
 import { StorageService } from './lib/storage';
 
@@ -115,8 +116,10 @@ export default function App() {
     if (code && (path === '/callback' || path === '/')) {
       const storedState = sessionStorage.getItem('oauth_state');
       const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
-      const clientId = '33433jm6aon9vgTQHB9vn';
-      const redirectUri = window.location.origin + '/callback';
+      
+      const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
+      const origin = window.location.origin.replace(/\/$/, '');
+      const redirectUri = import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + '/callback');
 
       if (returnedState !== storedState) {
         console.error('OAuth state mismatch!');

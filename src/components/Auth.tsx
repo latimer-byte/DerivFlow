@@ -15,11 +15,19 @@ export function Auth({ onLogin }: AuthProps) {
     setLoading(true);
     try {
       // Modern Deriv OAuth uses client_id (alphanumeric)
-    // Legacy app_id can be passed as an optional param
-    const clientId = '33433jm6aon9vgTQHB9vn';
-    const legacyAppId = import.meta.env.VITE_DERIV_APP_ID || localStorage.getItem('deriv_app_id') || '33433';
+    // We prioritize environment variables for custom app deployment
+    const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
     
-    // 1. Generate PKCE parameters
+    // 1. Prepare redirect URL - Normalized to prevent trailing slash issues
+    // Deriv Dashboard requires an EXACT string match. 
+    // We trim any trailing slashes from origin to ensure consistency.
+    const origin = window.location.origin.replace(/\/$/, '');
+    const callbackPath = '/callback';
+    const redirectUri = import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + callbackPath);
+    
+    console.log('Initiating Deriv OAuth with:', { clientId, redirectUri });
+
+    // 2. Generate PKCE parameters
     const array = crypto.getRandomValues(new Uint8Array(64));
     const codeVerifier = Array.from(array)
       .map(v => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'[v % 66])
@@ -38,10 +46,6 @@ export function Auth({ onLogin }: AuthProps) {
     sessionStorage.setItem('pkce_code_verifier', codeVerifier);
     sessionStorage.setItem('oauth_state', state);
 
-    // 3. Prepare redirect URL
-    const callbackPath = '/callback';
-    const redirectUri = window.location.origin + callbackPath;
-    
     const baseUrl = "https://auth.deriv.com/oauth2/auth";
     const params = new URLSearchParams({
       response_type: 'code',
@@ -150,9 +154,16 @@ export function Auth({ onLogin }: AuthProps) {
             <p className="text-text-muted text-xs font-bold uppercase tracking-widest text-center md:text-left">
               {isLogin ? 'Authenticate with your Deriv credentials' : 'Create an account via Deriv to start trading'}
             </p>
-            <p className="text-[10px] text-brand/60 font-mono text-center md:text-left mt-2">
-              Note: Ensure {window.location.origin}/callback is registered in your Deriv dashboard.
-            </p>
+            <div className="bg-brand/5 border border-brand/20 rounded-xl p-4 space-y-2 mt-4">
+              <p className="text-[10px] text-brand/80 font-bold uppercase tracking-widest">Connection Check</p>
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] text-text-muted font-mono break-all">Redirect URI: <span className="text-text-primary">{window.location.origin.replace(/\/$/, '')}/callback</span></span>
+                <span className="text-[9px] text-text-muted font-mono break-all">Client ID: <span className="text-text-primary">{import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm... (Default)'}</span></span>
+              </div>
+              <p className="text-[9px] text-text-muted italic leading-relaxed">
+                Ensure these values match your OAuth 2.0 Client registration in the Deriv Developer Dashboard.
+              </p>
+            </div>
           </div>
 
           <div className="space-y-6 pt-4">

@@ -7,7 +7,15 @@ const DEFAULT_APP_ID = '33433';
 const PUBLIC_WS_URL = 'wss://api.derivws.com/trading/v1/options/ws/public';
 
 const getAppId = () => {
-  return localStorage.getItem('deriv_app_id') || import.meta.env.VITE_DERIV_APP_ID || DEFAULT_APP_ID;
+  // Hub API REST endpoints (Deriv-App-ID header) usually expect the numeric app_id.
+  // OAuth 2.0 uses the client_id (alphanumeric).
+  // We prefer the environment variables.
+  return (
+    localStorage.getItem('deriv_app_id') || 
+    import.meta.env.VITE_DERIV_APP_ID || 
+    import.meta.env.VITE_DERIV_CLIENT_ID || 
+    DEFAULT_APP_ID
+  );
 };
 
 export type Tick = {

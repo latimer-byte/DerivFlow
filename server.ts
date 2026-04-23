@@ -56,20 +56,32 @@ async function startServer() {
   // Proxy route for Deriv Accounts
   app.get("/api/deriv/accounts", async (req, res) => {
     const token = req.headers.authorization;
-    const appId = req.headers['x-deriv-app-id'] || '33433';
+    const appId = req.headers['x-deriv-app-id'] || process.env.VITE_DERIV_APP_ID || '33433';
 
     if (!token) return res.status(401).json({ error: "Unauthorized" });
 
     try {
+      console.log(`Fetching Deriv accounts for App ID: ${appId}`);
       const response = await fetch("https://api.derivws.com/trading/v1/options/accounts", {
         headers: {
           "Authorization": token,
           "Deriv-App-ID": appId.toString()
         }
       });
+      
       const data = await response.json();
+      
+      if (!response.ok) {
+        console.error("Deriv Accounts Fetch Failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: data
+        });
+      }
+      
       res.status(response.status).json(data);
     } catch (error) {
+      console.error("Internal Proxy Error (Accounts):", error);
       res.status(500).json({ error: "Failed to fetch accounts" });
     }
   });
@@ -78,11 +90,12 @@ async function startServer() {
   app.post("/api/deriv/otp/:accountId", async (req, res) => {
     const { accountId } = req.params;
     const token = req.headers.authorization;
-    const appId = req.headers['x-deriv-app-id'] || '33433';
+    const appId = req.headers['x-deriv-app-id'] || process.env.VITE_DERIV_APP_ID || '33433';
 
     if (!token) return res.status(401).json({ error: "Unauthorized" });
 
     try {
+      console.log(`Requesting OTP for Account: ${accountId} using App ID: ${appId}`);
       const response = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
         method: "POST",
         headers: {
@@ -90,9 +103,19 @@ async function startServer() {
           "Deriv-App-ID": appId.toString()
         }
       });
+      
       const data = await response.json();
+      
+      if (!response.ok) {
+        console.error("Deriv OTP Request Failed:", {
+          status: response.status,
+          error: data
+        });
+      }
+      
       res.status(response.status).json(data);
     } catch (error) {
+      console.error("Internal Proxy Error (OTP):", error);
       res.status(500).json({ error: "Failed to fetch OTP" });
     }
   });
