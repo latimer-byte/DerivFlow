@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Zap, Mail, Lock, User, ArrowRight, Github, Chrome, Fingerprint, Eye, EyeOff } from 'lucide-react';
+import { Zap, Lock, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
-import { signInWithGoogle } from '@/lib/firebase';
 
 interface AuthProps {
   onLogin: (user: any) => void;
@@ -10,31 +9,7 @@ interface AuthProps {
 
 export function Auth({ onLogin }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    try {
-      const user = await signInWithGoogle();
-      const userData = {
-        name: user.displayName || 'User',
-        id: `CR${Math.floor(Math.random() * 9000 + 1000)}-${Math.random().toString(36).substring(2, 4).toUpperCase()}`,
-        email: user.email,
-        uid: user.uid,
-        authType: 'firebase'
-      };
-      localStorage.setItem('tradepulse_user', JSON.stringify(userData));
-      onLogin(userData);
-    } catch (error) {
-      console.error("Google login failed", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDerivLogin = async (isSignup = false) => {
     setLoading(true);
@@ -90,55 +65,6 @@ export function Auth({ onLogin }: AuthProps) {
       console.error('Deriv OAuth initiation failed:', error);
       setLoading(false);
     }
-  };
-
-  const handleBiometricLogin = async () => {
-    setLoading(true);
-    try {
-      // Simulate WebAuthn / Biometric flow
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const savedUser = localStorage.getItem('tradepulse_user');
-      if (savedUser) {
-        onLogin(JSON.parse(savedUser));
-      } else {
-        // Fallback for demo if no user saved
-        const demoUser = {
-          name: 'Biometric User',
-          id: `CR8842`,
-          uid: 'mock_biometric_user',
-          email: 'biometric@example.com'
-        };
-        onLogin(demoUser);
-      }
-    } catch (error) {
-      console.error("Biometric login failed", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      // Create a stable UID and ID from email for mock persistence
-      const mockUid = email ? `mock_${btoa(email).substring(0, 12)}` : `mock_${Math.random().toString(36).substring(2, 10)}`;
-      const stableId = email ? `CR${(email.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 9000) + 1000}` : `CR${Math.floor(Math.random() * 9000 + 1000)}`;
-
-      const newUser = {
-        name: isLogin ? (email.split('@')[0] || 'User') : name,
-        id: stableId,
-        uid: mockUid,
-        email: email
-      };
-      
-      localStorage.setItem('tradepulse_user', JSON.stringify(newUser));
-      onLogin(newUser);
-      setLoading(false);
-    }, 1500);
   };
 
   return (
@@ -217,126 +143,51 @@ export function Auth({ onLogin }: AuthProps) {
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-text-primary">
-              {isLogin ? 'Welcome Back' : 'Get Started'}
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-text-primary text-center md:text-left">
+              {isLogin ? 'Access Terminal' : 'Join Terminal'}
             </h1>
-            <p className="text-text-muted text-xs font-bold uppercase tracking-widest">
-              {isLogin ? 'Log in to your professional terminal' : 'Create your pro trading account'}
+            <p className="text-text-muted text-xs font-bold uppercase tracking-widest text-center md:text-left">
+              {isLogin ? 'Authenticate with your Deriv credentials' : 'Create an account via Deriv to start trading'}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest ml-1">Full Name</label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                  <input 
-                    type="text" 
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="John Doe"
-                    className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-4 text-sm text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/20 transition-all font-medium"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-text-muted uppercase tracking-widest ml-1">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                <input 
-                  type="email" 
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-4 text-sm text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/20 transition-all font-medium"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between items-center px-1">
-                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">Password</label>
-                {isLogin && <button type="button" className="text-[10px] font-black text-brand hover:underline tracking-widest uppercase">Forgot?</button>}
-              </div>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-12 text-sm text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/20 transition-all font-medium"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-secondary rounded-lg transition-colors text-text-muted"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
+          <div className="space-y-6 pt-4">
             <button 
-              type="submit"
+              type="button"
+              onClick={() => handleDerivLogin(!isLogin)}
               disabled={loading}
-              className="w-full bg-brand text-white rounded-xl py-4 font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-hover transition-all shadow-xl shadow-brand/20 disabled:opacity-50 mt-6 italic"
+              className="w-full flex items-center justify-center gap-4 py-5 bg-[#ff444f] hover:bg-[#e63e46] rounded-2xl transition-all text-xs font-black text-white uppercase tracking-widest italic shadow-xl shadow-red-500/20 group relative overflow-hidden"
             >
+              <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  {isLogin ? 'Enter Terminal' : 'Initialize Account'}
-                  <ArrowRight className="w-4 h-4" />
+                  <Zap className="w-5 h-5 fill-white" />
+                  <span>Connect with Deriv Account</span>
+                  <ArrowRight className="w-4 h-4 ml-auto" />
                 </>
               )}
             </button>
-          </form>
 
-          <div className="pt-6">
-            <div className="relative flex items-center justify-center mb-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border/50"></div>
+            <div className="bg-card/50 border border-border p-6 rounded-2xl space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 bg-brand/10 rounded-lg flex items-center justify-center shrink-0">
+                  <Lock className="w-3 h-3 text-brand" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-text-primary uppercase tracking-widest">Secure OAuth 2.0</p>
+                  <p className="text-[9px] font-bold text-text-muted uppercase leading-relaxed">Your password remains private. We only request trading permissions.</p>
+                </div>
               </div>
-              <span className="relative px-4 bg-background text-[10px] font-black text-text-muted uppercase tracking-widest">Global Auth</span>
-            </div>
-
-            <div className="space-y-3">
-              <button 
-                type="button"
-                onClick={() => handleDerivLogin(!isLogin)}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-3 py-3.5 bg-[#ff444f] hover:bg-[#e63e46] rounded-xl transition-all text-[11px] font-black text-white uppercase tracking-widest italic"
-              >
-                <Zap className="w-4 h-4 fill-white" />
-                Connect Deriv Account
-              </button>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <button 
-                  type="button"
-                  onClick={handleGoogleLogin}
-                  disabled={loading}
-                  className="flex items-center justify-center gap-2 py-3 border border-border rounded-xl hover:bg-card transition-all text-[10px] font-black text-text-primary uppercase tracking-widest disabled:opacity-50"
-                >
-                  <Chrome className="w-3.5 h-3.5" />
-                  Google
-                </button>
-                <button 
-                  type="button"
-                  onClick={handleBiometricLogin}
-                  disabled={loading}
-                  className="flex items-center justify-center gap-2 py-3 border border-border rounded-xl hover:bg-card transition-all text-[10px] font-black text-text-primary uppercase tracking-widest disabled:opacity-50"
-                >
-                  <Fingerprint className="w-3.5 h-3.5" />
-                  Bio-ID
-                </button>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 bg-brand/10 rounded-lg flex items-center justify-center shrink-0">
+                  <Zap className="w-3 h-3 text-brand" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-text-primary uppercase tracking-widest">Instant Sync</p>
+                  <p className="text-[9px] font-bold text-text-muted uppercase leading-relaxed">Real-time balance and trade history synchronization.</p>
+                </div>
               </div>
             </div>
           </div>
