@@ -41,13 +41,15 @@ export function Auth({ onLogin }: AuthProps) {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
+  const [showConfig, setShowConfig] = useState(false);
+  const [customClientId, setCustomClientId] = useState(import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn');
+  const [customRedirectUri, setCustomRedirectUri] = useState(import.meta.env.VITE_DERIV_REDIRECT_URI || `${window.location.origin.replace(/\/$/, '')}/callback`);
+
   const handleDerivLogin = async (isSignup = false) => {
     setLoading(true);
     try {
-      const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
-      const origin = window.location.origin.replace(/\/$/, '');
-      const callbackPath = '/callback';
-      const redirectUri = import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + callbackPath);
+      const clientId = customClientId;
+      const redirectUri = customRedirectUri;
       
       // 1. PKCE
       const array = crypto.getRandomValues(new Uint8Array(64));
@@ -67,12 +69,14 @@ export function Auth({ onLogin }: AuthProps) {
       sessionStorage.setItem('pkce_code_verifier', codeVerifier);
       sessionStorage.setItem('oauth_state', state);
 
-      const baseUrl = "https://auth.deriv.com/oauth2/auth";
+      // Using oauth.deriv.com for broader compatibility with older/standalone apps
+      const baseUrl = "https://oauth.deriv.com/oauth2/authorize";
       const params = new URLSearchParams({
         response_type: 'code',
+        app_id: clientId,
         client_id: clientId,
         redirect_uri: redirectUri,
-        scope: 'read trade payments',
+        scope: 'read trade',
         state: state,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
@@ -84,7 +88,6 @@ export function Auth({ onLogin }: AuthProps) {
 
       const derivLoginUrl = `${baseUrl}?${params.toString()}`;
       
-      // Open in POPUP (Mandatory for AI Studio iframe stability)
       const width = 600;
       const height = 700;
       const left = window.screenX + (window.outerWidth - width) / 2;
@@ -230,6 +233,44 @@ export function Auth({ onLogin }: AuthProps) {
               <p className="text-[9px] text-text-muted italic leading-relaxed pt-1">
                 Note: Ensure the exact URL above is registered in your <a href="https://api.deriv.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-brand hover:underline font-bold">Deriv Developer Dashboard</a>.
               </p>
+
+              {!showConfig ? (
+                <button 
+                  onClick={() => setShowConfig(true)}
+                  className="w-full text-[9px] font-black text-brand uppercase tracking-tighter hover:underline text-left pt-1"
+                >
+                  + Troubleshoot & Override Config
+                </button>
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="space-y-2 pt-2 border-t border-brand/10"
+                >
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black uppercase text-text-muted">Override App ID</label>
+                    <input 
+                      value={customClientId}
+                      onChange={(e) => setCustomClientId(e.target.value)}
+                      className="w-full bg-background/50 border border-brand/20 rounded p-1.5 text-[9px] font-mono text-text-primary"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black uppercase text-text-muted">Override Redirect URI</label>
+                    <input 
+                      value={customRedirectUri}
+                      onChange={(e) => setCustomRedirectUri(e.target.value)}
+                      className="w-full bg-background/50 border border-brand/20 rounded p-1.5 text-[9px] font-mono text-text-primary"
+                    />
+                  </div>
+                  <button 
+                    onClick={() => setShowConfig(false)}
+                    className="text-[8px] font-bold text-text-muted hover:text-brand uppercase"
+                  >
+                    Close Overrides
+                  </button>
+                </motion.div>
+              )}
             </div>
           </div>
 
