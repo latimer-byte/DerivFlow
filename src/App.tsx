@@ -76,6 +76,89 @@ export default function App() {
     };
   }, [tradeHistory, transactions]);
 
+  // Sync Deriv Auth with App User
+  useEffect(() => {
+    return derivApi.onStatusChange((status) => {
+      if (status === 'authorized') {
+        const savedUser = localStorage.getItem('tradepulse_user');
+        if (!savedUser) {
+          const newUser = {
+            name: 'Deriv Trader',
+            id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+            uid: `deriv_${Math.random().toString(36).substring(2, 10)}`,
+            authType: 'deriv'
+          };
+          setUser(newUser);
+          localStorage.setItem('tradepulse_user', JSON.stringify(newUser));
+        }
+      }
+    });
+  }, []);
+
+  // Check for OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const returnedState = params.get('state');
+    const path = window.location.pathname;
+
+    if (code && (path === '/callback' || path === '/')) {
+      const storedState = sessionStorage.getItem('oauth_state');
+      const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+      const clientId = '33433jm6aon9vgTQHB9vn';
+      const redirectUri = window.location.origin + '/callback';
+
+      if (returnedState !== storedState) {
+        console.error('OAuth state mismatch!');
+        return;
+      }
+
+      if (!codeVerifier) {
+        console.error('Missing code verifier for PKCE exchange');
+        return;
+      }
+
+      // Exchange code for token via backend
+      const exchangeToken = async () => {
+        try {
+          setIsReady(false);
+          const response = await fetch('/api/deriv/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code,
+              code_verifier: codeVerifier,
+              redirect_uri: redirectUri,
+              client_id: clientId
+            })
+          });
+
+          const data = await response.json();
+          if (data.access_token) {
+            // Success! Store token and clear state
+            derivApi.authorize(data.access_token);
+            sessionStorage.removeItem('oauth_state');
+            sessionStorage.removeItem('pkce_code_verifier');
+            
+            // Clean URL
+            window.history.replaceState({}, document.title, "/");
+            
+            // Note: We might need to fetch user data here if not provided in token response
+            // For now, derivApi.authorize will handle the session if it connects successfully
+          } else {
+            console.error('Token exchange failed:', data);
+          }
+        } catch (error) {
+          console.error('Error during token exchange:', error);
+        } finally {
+          setIsReady(true);
+        }
+      };
+
+      exchangeToken();
+    }
+  }, []);
+
   // Sync state with local storage AND cloud when user UID is available
   useEffect(() => {
     if (!user?.uid) {

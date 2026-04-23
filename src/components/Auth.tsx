@@ -36,28 +36,60 @@ export function Auth({ onLogin }: AuthProps) {
     }
   };
 
-  const handleDerivLogin = () => {
-    // Priority: Env variable > Local storage > Default fallback
-    const appId = import.meta.env.VITE_DERIV_APP_ID || localStorage.getItem('deriv_app_id') || '33433';
+  const handleDerivLogin = async (isSignup = false) => {
+    setLoading(true);
+    try {
+      // Modern Deriv OAuth uses client_id (alphanumeric)
+    // Legacy app_id can be passed as an optional param
+    const clientId = '33433jm6aon9vgTQHB9vn';
+    const legacyAppId = import.meta.env.VITE_DERIV_APP_ID || localStorage.getItem('deriv_app_id') || '33433';
     
-    // Dynamically determine redirect URL
+    // 1. Generate PKCE parameters
+    const array = crypto.getRandomValues(new Uint8Array(64));
+    const codeVerifier = Array.from(array)
+      .map(v => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'[v % 66])
+      .join('');
+
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier));
+    const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    const state = crypto.getRandomValues(new Uint8Array(16))
+      .reduce((s, b) => s + b.toString(16).padStart(2, '0'), '');
+
+    // 2. Store for later verification
+    sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+    sessionStorage.setItem('oauth_state', state);
+
+    // 3. Prepare redirect URL
     const callbackPath = '/callback';
-    const redirectUrl = window.location.origin + callbackPath;
+    const redirectUri = window.location.origin + callbackPath;
     
-    if (!appId) {
-      const manualId = window.prompt("Deriv App ID is missing. Please enter your App ID from api.deriv.com:");
-      if (manualId) {
-        localStorage.setItem('deriv_app_id', manualId);
-        const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${manualId}&l=en&brand=deriv&redirect_uri=${encodeURIComponent(redirectUrl)}`;
-        window.location.href = derivLoginUrl;
-      }
-      return;
+    const baseUrl = "https://auth.deriv.com/oauth2/auth";
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: 'trade account_manage',
+      state: state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+      app_id: legacyAppId // Optional legacy support
+    });
+
+    if (isSignup) {
+      params.append('prompt', 'registration');
     }
-    
-    const derivLoginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&brand=deriv&redirect_uri=${encodeURIComponent(redirectUrl)}`;
-    
-    console.log('Redirecting to:', derivLoginUrl);
+
+    const derivLoginUrl = `${baseUrl}?${params.toString()}`;
+    console.log('Redirecting to Deriv OAuth:', derivLoginUrl);
     window.location.href = derivLoginUrl;
+    } catch (error) {
+      console.error('Deriv OAuth initiation failed:', error);
+      setLoading(false);
+    }
   };
 
   const handleBiometricLogin = async () => {
@@ -278,7 +310,7 @@ export function Auth({ onLogin }: AuthProps) {
             <div className="space-y-3">
               <button 
                 type="button"
-                onClick={handleDerivLogin}
+                onClick={() => handleDerivLogin(!isLogin)}
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-3 py-3.5 bg-[#ff444f] hover:bg-[#e63e46] rounded-xl transition-all text-[11px] font-black text-white uppercase tracking-widest italic"
               >
