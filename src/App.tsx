@@ -137,16 +137,31 @@ export default function App() {
 
           const data = await response.json();
           if (data.access_token) {
-            // Success! Store token and clear state
-            derivApi.authorize(data.access_token);
+            // Success! Link to Firebase for Firestore persistence
+            try {
+              const firebaseUser = await signInAnonymously();
+              const userData = {
+                name: 'Deriv Trader',
+                id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+                email: 'deriv-account',
+                uid: firebaseUser.uid,
+                authType: 'deriv',
+                derivToken: data.access_token
+              };
+              setUser(userData);
+              localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+            } catch (fbError) {
+              console.error("Firebase linkage failed, using local session:", fbError);
+            }
+
+            // Authorize Deriv API
+            await derivApi.authorize(data.access_token);
+            
             sessionStorage.removeItem('oauth_state');
             sessionStorage.removeItem('pkce_code_verifier');
             
             // Clean URL
             window.history.replaceState({}, document.title, "/");
-            
-            // Note: We might need to fetch user data here if not provided in token response
-            // For now, derivApi.authorize will handle the session if it connects successfully
           } else {
             console.error('Token exchange failed:', data);
           }
@@ -380,62 +395,14 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // Handle Deriv OAuth Callback
+  // Handle Deriv OAuth Callback (Modern logic handled in top-level effects)
+  
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token1');
-    const acct = urlParams.get('acct1');
-    
-    if (token) {
-      console.log('Deriv OAuth callback detected');
-      
-      // Silent anonymous sign-in to Firebase to enable Firestore for Deriv users
-      const initFirebaseForDeriv = async () => {
-        try {
-          const firebaseUser = await signInAnonymously();
-          const userData = {
-            name: acct || 'Deriv Trader',
-            id: acct || `CR${Math.floor(Math.random() * 9000 + 1000)}`,
-            email: 'deriv-account',
-            uid: firebaseUser.uid, // Use Firebase UID for Firestore persistence
-            authType: 'deriv',
-            derivToken: token
-          };
-          
-          setUser(userData);
-          localStorage.setItem('tradepulse_user', JSON.stringify(userData));
-          derivApi.authorize(token);
-        } catch (error) {
-          console.error("Failed to link Deriv to Firebase", error);
-          // Fallback to local-only if Firebase fails
-          const userData = {
-            name: acct || 'Deriv Trader',
-            id: acct || `CR${Math.floor(Math.random() * 9000 + 1000)}`,
-            email: 'deriv-account',
-            uid: acct || token,
-            authType: 'deriv',
-            derivToken: token
-          };
-          setUser(userData);
-        }
-      };
-
-      initFirebaseForDeriv();
-      
-      // Clean up URL and redirect to root if we were on /callback
-      const finalPath = window.location.pathname === '/callback' ? '/' : window.location.pathname;
-      window.history.replaceState({}, document.title, finalPath);
-    } else if (!user && import.meta.env.VITE_DERIV_TOKEN) {
-      // Auto-initialize if an environment token is provided but no user session exists
+    if (!user && import.meta.env.VITE_DERIV_TOKEN) {
       const envToken = import.meta.env.VITE_DERIV_TOKEN;
-      console.log('Environment Deriv token detected, initializing session...');
-      
       const initEnvSession = async () => {
         try {
-          console.log('Attempting to sign in anonymously for environment session...');
           const firebaseUser = await signInAnonymously();
-          console.log('Anonymous sign-in successful:', firebaseUser.uid);
-          
           const userData = {
             name: 'Deriv Pro User',
             id: `PAT-${envToken.substring(envToken.length - 4)}`,
@@ -446,10 +413,9 @@ export default function App() {
           };
           setUser(userData);
           localStorage.setItem('tradepulse_user', JSON.stringify(userData));
-          console.log('Authorizing Deriv API with environment token...');
-          derivApi.authorize(envToken);
+          await derivApi.authorize(envToken);
         } catch (error) {
-          console.error("Failed to initialize environment session. Error details:", error);
+          console.error("Environment session init failed:", error);
         }
       };
       initEnvSession();
@@ -633,6 +599,26 @@ export default function App() {
             history={history}
             onTrade={async (trade) => {
               const newTrade = { ...trade, userId: user.uid };
+              
+              // Place real trade if Deriv is connected
+              if (user.authType === 'deriv') {
+                try {
+                  const contractType = trade.type === 'buy' ? 'CALL' : 'PUT';
+                  const result = await derivApi.buyContract(
+                    trade.symbol,
+                    trade.amount,
+                    contractType,
+                    trade.duration
+                  );
+                  console.log('Trade placed successfully on Deriv:', result);
+                  newTrade.id = (result as any).contract_id;
+                } catch (error: any) {
+                  console.error('Failed to place trade on Deriv:', error);
+                  alert(`Trade Failed: ${error.message}`);
+                  return; // Don't save trade if it failed on Deriv
+                }
+              }
+
               setActiveTrades(prev => [newTrade, ...prev]);
               
               // Local Persistence

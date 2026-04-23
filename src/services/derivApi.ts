@@ -447,6 +447,54 @@ class DerivService {
     });
   }
 
+  public async buyContract(symbol: string, amount: number, type: 'CALL' | 'PUT', duration: number = 60, basis: 'stake' | 'payout' = 'stake') {
+    if (!this.token || !this.isAuthorized) {
+      throw new Error('Not authorized for trading');
+    }
+
+    return new Promise((resolve, reject) => {
+      const reqId = ++this.reqIdCounter;
+      
+      const timeout = setTimeout(() => {
+        this.off(`req_${reqId}`, listener);
+        reject(new Error('Trade request timed out'));
+      }, 10000);
+
+      const listener = (data: any) => {
+        if (data.req_id === reqId) {
+          clearTimeout(timeout);
+          this.off(`req_${reqId}`, listener);
+          
+          if (data.error) {
+            reject(new Error(data.error.message || 'Failed to place trade'));
+            return;
+          }
+
+          resolve(data.buy);
+        }
+      };
+
+      this.on(`req_${reqId}`, listener);
+
+      // In modern API, we buy using parameters directly
+      this.send({
+        buy: 1,
+        subscribe: 1,
+        price: amount,
+        parameters: {
+          amount: amount,
+          basis: basis,
+          contract_type: type,
+          currency: 'USD',
+          duration: duration,
+          duration_unit: 's',
+          symbol: symbol
+        },
+        req_id: reqId
+      });
+    });
+  }
+
   private getSimulatedHistory(symbol: string, count: number): HistoryPoint[] {
     const basePrice = symbol.startsWith('R_') ? 1000 + Math.random() * 500 : 1.1234 + Math.random() * 0.1;
     const now = Math.floor(Date.now() / 1000);
