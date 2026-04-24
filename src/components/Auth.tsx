@@ -13,12 +13,8 @@ export function Auth({ onLogin }: AuthProps) {
   const [manualToken, setManualToken] = useState('');
   const [showManual, setShowManual] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [customClientId, setCustomClientId] = useState(import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn');
-  const [customRedirectUri, setCustomRedirectUri] = useState(() => {
-    if (import.meta.env.VITE_DERIV_REDIRECT_URI) return import.meta.env.VITE_DERIV_REDIRECT_URI;
-    const origin = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : 'http://localhost:3000';
-    return `${origin}/callback`;
-  });
+  const [customClientId, setCustomClientId] = useState('33433jm6aon9vgTQHB9vn');
+  const [customRedirectUri, setCustomRedirectUri] = useState('https://deriv-flow.vercel.app/callback');
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -111,15 +107,16 @@ export function Auth({ onLogin }: AuthProps) {
         response_type: 'code',
         client_id: clientId,
         redirect_uri: redirectUri,
-        scope: 'trade account_manage', // Standard scopes from the guide
+        scope: 'read trade', // Standardized scope
         state: state,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
       });
 
-      // If legacy app support is needed
-      if (clientId.match(/^\d+$/)) {
-        params.append('app_id', clientId);
+      // Always include numeric app_id if we can derive it from client_id
+      const numericAppId = clientId.match(/^(\d+)/)?.[1];
+      if (numericAppId) {
+        params.append('app_id', numericAppId);
       }
 
       if (isSignup) params.append('prompt', 'registration');
