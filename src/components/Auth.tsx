@@ -18,6 +18,7 @@ export function Auth({ onLogin }: AuthProps) {
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
 
   // Listen for message from OAuth popup to stop local loading state
   useEffect(() => {
@@ -53,12 +54,12 @@ export function Auth({ onLogin }: AuthProps) {
         userCredential = await createUserWithEmailAndPassword(emailValue, password);
         // @ts-ignore
         await updateProfile(userCredential.user, {
-          displayName: identifier.split('@')[0]
+          displayName: displayName || identifier.split('@')[0]
         });
       }
 
       const userData = {
-        name: userCredential.user.displayName || identifier.split('@')[0],
+        name: displayName || userCredential.user.displayName || identifier.split('@')[0],
         email: emailValue,
         uid: userCredential.user.uid,
         authType: 'firebase' as const
@@ -338,11 +339,31 @@ export function Auth({ onLogin }: AuthProps) {
             {/* Email/Password Flow */}
             <form onSubmit={handleEmailLogin} className="space-y-4">
               <div className="space-y-4">
+                {!isLogin && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="space-y-1"
+                  >
+                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest pl-1">Full Name</label>
+                    <input 
+                      type="text"
+                      placeholder="YOUR NAME"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      required={!isLogin}
+                      className="w-full bg-secondary/20 border border-border focus:border-brand/40 hover:border-border-strong rounded-2xl py-4 px-5 text-xs font-bold text-text-primary outline-none transition-all placeholder:text-text-muted/30"
+                    />
+                  </motion.div>
+                )}
+                
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-text-muted uppercase tracking-widest pl-1">Identifier</label>
+                  <label className="text-[9px] font-black text-text-muted uppercase tracking-widest pl-1">
+                    {isLogin ? 'Identifier' : 'Email Address'}
+                  </label>
                   <input 
-                    type="text"
-                    placeholder="USERNAME / EMAIL / UID"
+                    type={isLogin ? "text" : "email"}
+                    placeholder={isLogin ? "USERNAME / EMAIL" : "user@example.com"}
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     required

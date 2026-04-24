@@ -89,15 +89,22 @@ class DerivService {
   }
 
   private connect(url?: string) {
-    let wsUrl = url || this.otpUrl;
+    // If already connecting or connected to the correct URL, don't restart
+    const wsUrl = url || this.otpUrl || `${PUBLIC_WS_URL}?app_id=${getAppId()}`;
     
-    if (!wsUrl) {
-      const appId = getAppId();
-      wsUrl = `${PUBLIC_WS_URL}?app_id=${appId}`;
+    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+      // If we are already connecting/connected to a DIFFERENT URL, we must close and restart
+      if (this.socket.url !== wsUrl) {
+        console.log(`Deriv: URL mismatch (${this.socket.url} vs ${wsUrl}), restarting socket...`);
+        this.socket.close();
+      } else {
+        return; // Already in flight or connected
+      }
     }
 
     console.log(`Connecting to Deriv API (${this.isAuthorized ? 'Authenticated' : 'Public'} via ${wsUrl})...`);
     this.setStatus('connecting');
+    this.isConnected = false;
     
     try {
       this.socket = new WebSocket(wsUrl);
@@ -108,7 +115,7 @@ class DerivService {
         
         if (this.isAuthorized) {
           this.setStatus('authorized');
-          console.log('Deriv WebSocket Authenticated via OTP');
+          console.log('Deriv WebSocket Authenticated');
         } else {
           this.setStatus('connected');
           console.log('Deriv WebSocket Connected (Public)');
@@ -125,6 +132,7 @@ class DerivService {
     } catch (error) {
       console.error('Failed to establish Deriv WebSocket:', error);
       this.setStatus('error');
+      this.isConnected = false;
     }
 
     this.socket.onmessage = (event) => {
@@ -343,26 +351,40 @@ class DerivService {
    */
   private async legacyAuthorize(token: string): Promise<any> {
     return new Promise((resolve, reject) => {
+      const timeoutSec = 20;
+      const timeoutId = setTimeout(() => {
+        if (this.socket?.readyState !== WebSocket.OPEN || !this.isAuthorized) {
+          reject(new Error("Connection timeout during WebSocket auth fallback. Please check your internet or App ID whitelist."));
+        }
+      }, timeoutSec * 1000);
+
+      const doAuth = () => {
+        this.executeLegacyAuth(token, (res: any) => {
+          clearTimeout(timeoutId);
+          resolve(res);
+        }, (err: any) => {
+          clearTimeout(timeoutId);
+          reject(err);
+        });
+      };
+
       // Ensure we are connected first
       if (!this.isConnected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
         this.connect();
-        // Wait for connection
-        const checkConn = setInterval(() => {
-          if (this.isConnected && this.socket?.readyState === WebSocket.OPEN) {
-            clearInterval(checkConn);
-            this.executeLegacyAuth(token, resolve, reject);
-          }
-        }, 300);
         
-        // Timeout after 15s (increased for safety)
-        setTimeout(() => {
-          clearInterval(checkConn);
-          if (!this.isConnected || this.socket?.readyState !== WebSocket.OPEN) {
-            reject(new Error("Connection timeout during WebSocket auth fallback"));
+        // Use a persistent listener for this specific attempt
+        const checkConn = () => {
+          if (this.socket?.readyState === WebSocket.OPEN) {
+            this.off('connected', checkConn);
+            this.off('authorized', checkConn);
+            doAuth();
           }
-        }, 15000);
+        };
+        
+        this.on('connected', checkConn);
+        this.on('authorized', checkConn);
       } else {
-        this.executeLegacyAuth(token, resolve, reject);
+        doAuth();
       }
     });
   }

@@ -495,9 +495,13 @@ export default function App() {
 
   // Handle Deriv OAuth Callback (Modern logic handled in top-level effects)
   
+  // Environment session initialization (using VITE_DERIV_TOKEN)
   useEffect(() => {
-    if (!user && import.meta.env.VITE_DERIV_TOKEN || '884e') {
-      const envToken = import.meta.env.VITE_DERIV_TOKEN || '884e';
+    // Only run if we don't have a user OR if the current user is NOT a deriv user but we have a token
+    const envToken = import.meta.env.VITE_DERIV_TOKEN || (import.meta.env.DEV ? '884e' : null);
+    
+    if (!user && envToken) {
+      console.log("Deriv: Initializing session via environment token...");
       const initEnvSession = async () => {
         try {
           const firebaseUser = await signInAnonymously();
@@ -506,19 +510,20 @@ export default function App() {
             id: `PAT-${envToken.substring(Math.max(0, envToken.length - 4))}`,
             email: 'deriv-pro-account',
             uid: firebaseUser.uid,
-            authType: 'deriv',
+            authType: 'deriv' as const,
             derivToken: envToken
           };
           setUser(userData);
           localStorage.setItem('tradepulse_user', JSON.stringify(userData));
-          await derivApi.authorize(envToken);
+          // Authorize immediately
+          derivApi.authorize(envToken).catch(e => console.error("Initial auth failed:", e));
         } catch (error) {
           console.error("Environment session init failed:", error);
         }
       };
       initEnvSession();
     }
-  }, [user]);
+  }, [user]); // user is still a dependency, but the !user check now works correctly
 
   // Initialize market data
   useEffect(() => {
