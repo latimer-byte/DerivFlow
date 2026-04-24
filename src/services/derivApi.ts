@@ -100,7 +100,8 @@ class DerivService {
     try {
       this.socket = new WebSocket(wsUrl);
 
-      this.socket.onopen = () => {
+      this.socket.onopen = (event) => {
+        if (this.socket !== event.target) return;
         this.isConnected = true;
         
         if (this.isAuthorized) {
@@ -116,7 +117,6 @@ class DerivService {
         this.pingInterval = setInterval(() => {
           this.send({ ping: 1 });
         }, 30000);
-
         // Flush queue
         this.flushQueue();
       };
@@ -126,6 +126,7 @@ class DerivService {
     }
 
     this.socket.onmessage = (event) => {
+      if (this.socket !== event.target) return;
       try {
         const data = JSON.parse(event.data);
         const msgType = data.msg_type;
@@ -168,18 +169,25 @@ class DerivService {
       }
     };
 
-    this.socket.onclose = () => {
+    this.socket.onclose = (event) => {
+      if (this.socket !== event.target) return;
+      
       this.isConnected = false;
       this.setStatus('disconnected');
       if (this.pingInterval) clearInterval(this.pingInterval);
       
-      // If we were authorized and connection dropped, we might need new OTP or just retry
-      console.log('Deriv WebSocket Disconnected. Reconnecting in 5s...');
-      setTimeout(() => this.connect(), 5000);
+      // Only auto-reconnect if it wasn't a manual logout or explicit reset
+      if (this.token) {
+        console.log('Deriv WebSocket Disconnected. Reconnecting in 5s...');
+        setTimeout(() => {
+          if (!this.isConnected && this.token) this.connect();
+        }, 5000);
+      }
     };
 
-    this.socket.onerror = (error) => {
-      console.error('Deriv WebSocket Error:', error);
+    this.socket.onerror = (event) => {
+      if (this.socket !== event.target) return;
+      console.error('Deriv WebSocket Error:', event);
       this.setStatus('error');
     };
   }
@@ -297,11 +305,15 @@ class DerivService {
       // FALLBACK: Traditional WebSocket authorize
       try {
         // Force a clean websocket connection for legacy auth to ensure fresh state/app_id
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-          console.log("Deriv: Closing existing socket for fresh legacy handshake...");
-          this.socket.close();
-          // Wait a bit for close to propagate
-          await new Promise(r => setTimeout(r, 500));
+        if (this.socket) {
+          console.log("Deriv: Resetting socket for legacy fallback...");
+          const oldSocket = this.socket;
+          this.socket = null; // Prevent onclose from triggering auto-reconnect
+          this.isConnected = false;
+          if (oldSocket.readyState === WebSocket.OPEN || oldSocket.readyState === WebSocket.CONNECTING) {
+            oldSocket.close();
+          }
+          await new Promise(r => setTimeout(r, 300));
         }
 
         const authData = await this.legacyAuthorize(token);
@@ -330,13 +342,15 @@ class DerivService {
             clearInterval(checkConn);
             this.executeLegacyAuth(token, resolve, reject);
           }
-        }, 500);
+        }, 300);
         
-        // Timeout after 10s
+        // Timeout after 15s (increased for safety)
         setTimeout(() => {
           clearInterval(checkConn);
-          reject(new Error("Connection timeout during WebSocket auth fallback"));
-        }, 10000);
+          if (!this.isConnected || this.socket?.readyState !== WebSocket.OPEN) {
+            reject(new Error("Connection timeout during WebSocket auth fallback"));
+          }
+        }, 15000);
       } else {
         this.executeLegacyAuth(token, resolve, reject);
       }

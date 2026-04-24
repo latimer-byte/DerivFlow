@@ -100,11 +100,100 @@ export default function App() {
 
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Check for OAuth callback
-  useEffect(() => {
-    // If we already have a user, don't re-process callback params
-    if (user) return;
+  // Unified token exchange handler
+  const performExchange = async (code: string, returnedState: string | null) => {
+    try {
+      const storedState = sessionStorage.getItem('oauth_state');
+      const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+      const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
+      const storedClientId = sessionStorage.getItem('oauth_client_id');
+      
+      const clientId = storedClientId || import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
+      const origin = window.location.origin.replace(/\/$/, '');
+      const redirectUri = storedRedirectUri || import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + '/callback');
 
+      if (returnedState && storedState && returnedState !== storedState) {
+        throw new Error('Security Breach: OAuth state mismatch detected.');
+      }
+
+      if (!codeVerifier) {
+        throw new Error('Session Expired: Missing PKCE verifier. Please login again.');
+      }
+
+      setIsReady(false);
+      const response = await fetch('/api/deriv/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          code_verifier: codeVerifier,
+          redirect_uri: redirectUri,
+          client_id: clientId
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.access_token) {
+        console.log('Deriv Token Exchange Successful (In-Place Handshake)');
+        
+        const userData = {
+           name: 'Deriv Trader',
+           id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+           email: 'deriv-account',
+           uid: `deriv_${Date.now()}`,
+           authType: 'deriv' as const,
+           derivToken: data.access_token
+        };
+
+        // Transition immediately
+        setUser(userData);
+        localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+        
+        // Clear all security artifacts from session
+        sessionStorage.removeItem('oauth_state');
+        sessionStorage.removeItem('pkce_code_verifier');
+        sessionStorage.removeItem('oauth_redirect_uri');
+        sessionStorage.removeItem('oauth_client_id');
+
+        // Parallel background initializations
+        signInAnonymously().then(firebaseUser => {
+          const updatedUser = { ...userData, uid: firebaseUser.uid };
+          setUser(updatedUser);
+          localStorage.setItem('tradepulse_user', JSON.stringify(updatedUser));
+        }).catch(e => console.warn('Persistence sync deferred:', e));
+
+        derivApi.authorize(data.access_token).catch(e => console.error('API Init failed:', e));
+        
+        window.history.replaceState({}, document.title, "/");
+        setActiveTab('dashboard');
+      } else {
+        throw new Error(data.error || 'The authorization code is invalid or expired.');
+      }
+    } catch (err: any) {
+      console.error('Handshake Error:', err);
+      setAuthError(err.message);
+    } finally {
+      setIsReady(true);
+    }
+  };
+
+  // Check for OAuth callback or popup messages
+  useEffect(() => {
+    // 1. Handle cross-window communication (Popups)
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'DERIV_AUTH_COMPLETE') {
+        const { code, state, error } = event.data;
+        if (error) {
+          setAuthError(error === 'access_denied' ? 'Access Denied: You cancelled the login.' : error);
+        } else if (code) {
+          performExchange(code, state);
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+
+    // 2. Handle direct URL redirect
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const returnedState = params.get('state');
@@ -112,116 +201,28 @@ export default function App() {
     const path = window.location.pathname;
 
     if (error) {
-      console.error('OAuth error from Deriv:', error);
-      // If we are in a popup, tell the opener
+      // If we are in a popup, tell the opener and close
       if (window.opener && window.opener !== window) {
         window.opener.postMessage({ type: 'DERIV_AUTH_COMPLETE', error }, window.location.origin);
         window.close();
         return;
       }
       setAuthError(error === 'access_denied' ? 'Access Denied: You cancelled the login.' : error);
-      return;
-    }
-
-    if (code && (path.includes('callback') || path === '/')) {
-      // If we are in a popup, send the code to the opener and CLOSE
+    } else if (code) {
+      // If we are in a popup, send code and close
       if (window.opener && window.opener !== window) {
-        console.log('Detected popup context, sending code to opener...');
-        window.opener.postMessage({ 
-          type: 'DERIV_AUTH_COMPLETE', 
-          code, 
-          state: returnedState 
-        }, window.location.origin);
+        window.opener.postMessage({ type: 'DERIV_AUTH_COMPLETE', code, state: returnedState }, window.location.origin);
         window.close();
         return;
       }
-
-      const exchangeToken = async () => {
-        try {
-          const storedState = sessionStorage.getItem('oauth_state');
-          const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
-          const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
-          const storedClientId = sessionStorage.getItem('oauth_client_id');
-          
-          const clientId = storedClientId || import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
-          const origin = window.location.origin.replace(/\/$/, '');
-          const redirectUri = storedRedirectUri || import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + '/callback');
-
-          if (returnedState && storedState && returnedState !== storedState) {
-            throw new Error('Security Breach: OAuth state mismatch detected.');
-          }
-
-          if (!codeVerifier) {
-            throw new Error('Session Expired: Missing PKCE verifier. Please login again.');
-          }
-
-          setIsReady(false);
-          const response = await fetch('/api/deriv/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              code,
-              code_verifier: codeVerifier,
-              redirect_uri: redirectUri,
-              client_id: clientId
-            })
-          });
-
-          const data = await response.json();
-          if (data.access_token) {
-            console.log('Token exchange successful, linking session...');
-            
-            // Create user data early so we have a fallback
-            let userData = {
-               name: 'Deriv Trader',
-               id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
-               email: 'deriv-account',
-               uid: `deriv_${Date.now()}`,
-               authType: 'deriv' as const,
-               derivToken: data.access_token
-            };
-
-            // Set user immediately to trigger dashboard transition (Fast Path)
-            console.log('Setting user state and transitioning to terminal...');
-            setUser(userData);
-            localStorage.setItem('tradepulse_user', JSON.stringify(userData));
-
-            // Background task: Attempt Firebase linkage for persistence
-            signInAnonymously().then(firebaseUser => {
-              console.log("Firebase linkage successful:", firebaseUser.uid);
-              const updatedUser = { ...userData, uid: firebaseUser.uid };
-              setUser(updatedUser);
-              localStorage.setItem('tradepulse_user', JSON.stringify(updatedUser));
-            }).catch(fbError => {
-              console.warn("Firebase linkage failed, continuing with local session:", fbError);
-            });
-
-            // Authorize Deriv API (Background authorization)
-            derivApi.authorize(data.access_token).then(() => {
-              console.log('Deriv API authorized successfully');
-            }).catch(authError => {
-              console.error('Deriv API background authorization failed:', authError);
-            });
-            
-            sessionStorage.removeItem('oauth_state');
-            sessionStorage.removeItem('pkce_code_verifier');
-            
-            // Clean URL and redirect to dashboard
-            window.history.replaceState({}, document.title, "/");
-            setActiveTab('dashboard');
-          } else {
-            throw new Error(data.error || 'The authorization code is invalid or expired.');
-          }
-        } catch (err: any) {
-          console.error('Error during token exchange:', err);
-          setAuthError(err.message);
-        } finally {
-          setIsReady(true);
-        }
-      };
-
-      exchangeToken();
+      
+      // If in main window and not yet handled, start exchange
+      if (!user) {
+        performExchange(code, returnedState);
+      }
     }
+
+    return () => window.removeEventListener('message', handleMessage);
   }, [user]);
 
   // Sync state with local storage AND cloud when user UID is available

@@ -16,88 +16,21 @@ export function Auth({ onLogin }: AuthProps) {
   const [customClientId, setCustomClientId] = useState(import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn');
   const [customRedirectUri, setCustomRedirectUri] = useState(import.meta.env.VITE_DERIV_REDIRECT_URI || 'https://deriv-flow.vercel.app/callback');
 
-  // Listen for message from OAuth popup
+  // Listen for message from OAuth popup to stop local loading state
   useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
+    const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'DERIV_AUTH_COMPLETE') {
-        const { code, state, error } = event.data;
-        
+        const { error } = event.data;
         if (error) {
-          console.error('OAuth popup returned error:', error);
-          alert(`Authentication failed: ${error}`);
           setLoading(false);
-          return;
         }
-
-        if (code) {
-          console.log('Code received from popup, initiating in-place handshaking...');
-          setLoading(true);
-          
-          try {
-            const storedState = sessionStorage.getItem('oauth_state');
-            const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
-            const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
-            const storedClientId = sessionStorage.getItem('oauth_client_id');
-            
-            const clientId = storedClientId || customClientId;
-            const redirectUri = storedRedirectUri || customRedirectUri;
-
-            if (state && state !== storedState) {
-              throw new Error('OAuth state mismatch!');
-            }
-
-            if (!codeVerifier) {
-              throw new Error('Missing code verifier for PKCE exchange');
-            }
-
-            // Exchange token in-place to avoid full page reload lag
-            const response = await fetch('/api/deriv/token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                code,
-                code_verifier: codeVerifier,
-                redirect_uri: redirectUri,
-                client_id: clientId
-              })
-            });
-
-            const data = await response.json();
-            if (data.access_token) {
-              console.log('In-place handshake successful');
-              const userData = {
-                name: 'Deriv Trader',
-                id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
-                email: 'deriv-account',
-                uid: `deriv_${Date.now()}`,
-                authType: 'deriv' as const,
-                derivToken: data.access_token
-              };
-              
-              // Clear session storage BEFORE notifying parent to avoid re-triggers
-              sessionStorage.removeItem('oauth_state');
-              sessionStorage.removeItem('pkce_code_verifier');
-              sessionStorage.removeItem('oauth_redirect_uri');
-              sessionStorage.removeItem('oauth_client_id');
-              
-              console.log('Handshake complete, notifying app...');
-              onLogin(userData);
-              setLoading(false); // Should be unmounting anyway
-            } else {
-              throw new Error(data.error || 'Response missing access token');
-            }
-          } catch (exchangeError: any) {
-            console.error('In-place handshake failed:', exchangeError);
-            alert(`Handshake Failed: ${exchangeError.message}. The authorization code might be expired or invalid for this Client ID.`);
-            setLoading(false);
-          }
-        }
+        // App.tsx handles the success/exchange
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [onLogin, customClientId, customRedirectUri]);
+  }, []);
 
   const handleDerivLogin = async (isSignup = false) => {
     setLoading(true);
