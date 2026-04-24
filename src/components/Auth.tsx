@@ -14,7 +14,10 @@ export function Auth({ onLogin }: AuthProps) {
   const [showManual, setShowManual] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [customClientId, setCustomClientId] = useState('33433jm6aon9vgTQHB9vn');
-  const [customRedirectUri, setCustomRedirectUri] = useState('https://deriv-flow.vercel.app/callback');
+  const [customRedirectUri, setCustomRedirectUri] = useState(() => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://deriv-flow.vercel.app';
+    return `${origin}/callback`;
+  });
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');

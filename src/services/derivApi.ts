@@ -86,6 +86,7 @@ class DerivService {
 
   private setStatus(status: ConnectionStatus) {
     this.statusListeners.forEach(cb => cb(status));
+    this.trigger(status, { status });
   }
 
   private connect(url?: string) {
@@ -245,6 +246,7 @@ class DerivService {
     const isLegacyToken = token.length < 50;
 
     console.log(`Deriv: Initiating authorization (Type: ${isLegacyToken ? 'Legacy' : 'Modern'})`);
+    console.log(`Deriv: Using token: ${token.substring(0, 4)}...${token.substring(Math.max(0, token.length - 4))}`);
 
     try {
       if (isLegacyToken) {
@@ -351,15 +353,22 @@ class DerivService {
    * Traditional WebSocket Authorize
    */
   private async legacyAuthorize(token: string): Promise<any> {
+    if (this.isAuthorized && this.token === token && this.isConnected) {
+      console.log("Deriv: Already authorized with this token, skipping redundant auth.");
+      return Promise.resolve({ authorize: {} });
+    }
+
     return new Promise((resolve, reject) => {
-      const timeoutSec = 20;
+      const timeoutSec = 25;
       const timeoutId = setTimeout(() => {
-        if (this.socket?.readyState !== WebSocket.OPEN || !this.isAuthorized) {
-          reject(new Error("Connection timeout during WebSocket auth fallback. Please check your internet or App ID whitelist."));
+        if (!this.isAuthorized) {
+          console.error(`Deriv auth timeout after ${timeoutSec}s. Status: ${this.isConnected ? 'Connected' : 'Disconnected'}, ReadyState: ${this.socket?.readyState}`);
+          reject(new Error("Connection timeout during WebSocket auth fallback. Please check your internet or App ID whitelist. Ensure the token is valid and the App ID matches your domain."));
         }
       }, timeoutSec * 1000);
 
       const doAuth = () => {
+        console.log("Deriv: Executing WebSocket authorize command...");
         this.executeLegacyAuth(token, (res: any) => {
           clearTimeout(timeoutId);
           resolve(res);
@@ -371,11 +380,12 @@ class DerivService {
 
       // Ensure we are connected first
       if (!this.isConnected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        console.log("Deriv: Socket not ready for auth, connecting...");
         this.connect();
         
-        // Use a persistent listener for this specific attempt
         const checkConn = () => {
           if (this.socket?.readyState === WebSocket.OPEN) {
+            console.log("Deriv: Socket opened, proceeding with auth.");
             this.off('connected', checkConn);
             this.off('authorized', checkConn);
             doAuth();

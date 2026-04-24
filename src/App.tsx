@@ -664,14 +664,16 @@ export default function App() {
     window.location.href = url.toString();
   };
 
+  const handleOnLogin = useCallback((u: any) => {
+    setUser(u);
+    setActiveTab('dashboard');
+    if (u.derivToken) derivApi.authorize(u.derivToken);
+  }, []);
+
   if (!user) {
     return (
       <ErrorBoundary>
-        <Auth onLogin={(u) => {
-          setUser(u);
-          setActiveTab('dashboard');
-          if (u.derivToken) derivApi.authorize(u.derivToken);
-        }} />
+        <Auth onLogin={handleOnLogin} />
         {/* Transparent Overlay for background handshake if redirect happened */}
         {window.location.search.includes('code=') && !authError && (
           <div className="fixed inset-0 bg-background/50 backdrop-blur-sm flex flex-col items-center justify-center z-50">
