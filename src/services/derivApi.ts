@@ -58,7 +58,7 @@ class DerivService {
   private activeSubscriptions: Map<string, string> = new Map(); // symbol -> subscriptionId
   private subscriptionCounts: Map<string, number> = new Map(); // symbol -> count
   private reqIdCounter = 0;
-  private token: string | null = localStorage.getItem('deriv_token') || import.meta.env.VITE_DERIV_TOKEN || '884e';
+  private token: string | null = localStorage.getItem('deriv_token') || import.meta.env.VITE_DERIV_TOKEN || 'p5nK796S38ivS68';
   private isAuthorized = false;
   private otpUrl: string | null = null;
   private activeAccountId: string | null = localStorage.getItem('active_account_id');
@@ -319,6 +319,7 @@ class DerivService {
       }
     } catch (error: any) {
       console.warn(`Deriv: Modern Auth failed (${error.message || 'Error'}), falling back to Legacy WebSocket Auth...`);
+      this.otpUrl = null; // IMPORTANT: Clear OTP URL for legacy fallback
       
       // FALLBACK: Traditional WebSocket authorize
       try {

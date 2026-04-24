@@ -18,6 +18,7 @@ export function Auth({ onLogin }: AuthProps) {
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
 
   // Listen for message from OAuth popup to stop local loading state
@@ -39,6 +40,11 @@ export function Auth({ onLogin }: AuthProps) {
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier || !password) return;
+    
+    if (!isLogin && password !== confirmPassword) {
+      alert("Terminal Security Violation: Secret keys do not match.");
+      return;
+    }
     
     setLoading(true);
     try {
@@ -381,6 +387,24 @@ export function Auth({ onLogin }: AuthProps) {
                     className="w-full bg-secondary/20 border border-border focus:border-brand/40 hover:border-border-strong rounded-2xl py-4 px-5 text-xs font-bold text-text-primary outline-none transition-all placeholder:text-text-muted/30"
                   />
                 </div>
+                
+                {!isLogin && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="space-y-1"
+                  >
+                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest pl-1">Confirm Secret Key</label>
+                    <input 
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required={!isLogin}
+                      className="w-full bg-secondary/20 border border-border focus:border-brand/40 hover:border-border-strong rounded-2xl py-4 px-5 text-xs font-bold text-text-primary outline-none transition-all placeholder:text-text-muted/30"
+                    />
+                  </motion.div>
+                )}
                 
                 <button 
                   type="submit"

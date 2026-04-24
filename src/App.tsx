@@ -12,7 +12,7 @@ import { Chat } from './components/Chat';
 import { History } from './components/History';
 import { Analytics } from './components/Analytics';
 import { Auth } from './components/Auth';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import ErrorBoundary from './components/ErrorBoundary';
 import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, onAuthStateChanged, signInAnonymously } from './lib/firebase';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { derivApi, Tick, HistoryPoint, Candle, ConnectionStatus } from './services/derivApi';
@@ -81,19 +81,20 @@ export default function App() {
   useEffect(() => {
     return derivApi.onStatusChange((status) => {
       if (status === 'authorized') {
-        const savedUser = localStorage.getItem('tradepulse_user');
         const accountId = derivApi.getAccountId();
         
-        if (!savedUser) {
+        setUser((prevUser: any) => {
+          if (prevUser) return prevUser;
+          
           const newUser = {
             name: 'Deriv Trader',
             id: accountId || `CR${Math.floor(Math.random() * 9000 + 1000)}`,
             uid: `deriv_${accountId || Math.random().toString(36).substring(2, 10)}`,
-            authType: 'deriv'
+            authType: 'deriv' as const
           };
-          setUser(newUser);
           localStorage.setItem('tradepulse_user', JSON.stringify(newUser));
-        }
+          return newUser;
+        });
       }
     });
   }, []);
@@ -498,7 +499,7 @@ export default function App() {
   // Environment session initialization (using VITE_DERIV_TOKEN)
   useEffect(() => {
     // Only run if we don't have a user OR if the current user is NOT a deriv user but we have a token
-    const envToken = import.meta.env.VITE_DERIV_TOKEN || (import.meta.env.DEV ? '884e' : null);
+    const envToken = import.meta.env.VITE_DERIV_TOKEN || (import.meta.env.DEV ? 'p5nK796S38ivS68' : null);
     
     if (!user && envToken) {
       console.log("Deriv: Initializing session via environment token...");
@@ -506,15 +507,21 @@ export default function App() {
         try {
           const firebaseUser = await signInAnonymously();
           const userData = {
-            name: 'Deriv Pro User',
+            name: 'Deriv Pro Account',
             id: `PAT-${envToken.substring(Math.max(0, envToken.length - 4))}`,
             email: 'deriv-pro-account',
             uid: firebaseUser.uid,
             authType: 'deriv' as const,
             derivToken: envToken
           };
-          setUser(userData);
-          localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+          
+          // Use a functional update to avoid potential stale closures or multiple triggers
+          setUser((prev: any) => {
+            if (prev) return prev;
+            localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+            return userData;
+          });
+          
           // Authorize immediately
           derivApi.authorize(envToken).catch(e => console.error("Initial auth failed:", e));
         } catch (error) {
@@ -523,7 +530,7 @@ export default function App() {
       };
       initEnvSession();
     }
-  }, [user]); // user is still a dependency, but the !user check now works correctly
+  }, [user]); // user is still a dependency, but the check within initEnvSession handles it 
 
   // Initialize market data
   useEffect(() => {
