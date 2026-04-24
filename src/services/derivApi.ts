@@ -77,8 +77,9 @@ class DerivService {
     this.statusListeners.add(callback);
     // Immediately trigger with current status
     if (this.isAuthorized) callback('authorized');
-    else if (this.isConnected) callback('connected');
-    else callback('connecting');
+    else if (this.isConnected && this.socket?.readyState === WebSocket.OPEN) callback('connected');
+    else if (this.socket && this.socket.readyState === WebSocket.CONNECTING) callback('connecting');
+    else callback('disconnected');
     return () => this.statusListeners.delete(callback);
   }
 
@@ -170,17 +171,21 @@ class DerivService {
     };
 
     this.socket.onclose = (event) => {
-      if (this.socket !== event.target) return;
+      if (this.socket !== event.target && event.target !== null) return;
       
       this.isConnected = false;
       this.setStatus('disconnected');
       if (this.pingInterval) clearInterval(this.pingInterval);
       
+      // If this.socket was nulled out, it means we are doing an immediate reconnect
+      // elsewhere (e.g. in authorize transition to OTP)
+      if (this.socket === null) return;
+
       // Only auto-reconnect if it wasn't a manual logout or explicit reset
       if (this.token) {
         console.log('Deriv WebSocket Disconnected. Reconnecting in 5s...');
         setTimeout(() => {
-          if (!this.isConnected && this.token) this.connect();
+          if (!this.isConnected && this.token && this.socket !== null) this.connect();
         }, 5000);
       }
     };
@@ -206,11 +211,11 @@ class DerivService {
   }
 
   public send(data: any) {
-    if (this.isConnected && this.socket?.readyState === WebSocket.OPEN) {
+    if (this.isConnected && this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
         this.socket.send(JSON.stringify(data));
       } catch (e) {
-        console.error('Deriv: Failed to send message, queueing instead:', e);
+        // Silently catch and queue if send fails during race condition
         this.messageQueue.push(data);
       }
     } else {
@@ -287,10 +292,14 @@ class DerivService {
           this.isAuthorized = true;
           
           if (this.socket) {
-            this.socket.close(); // Triggers reconnect with otpUrl
-          } else {
-            this.connect();
+            console.log("Deriv: Rotating socket to OTP endpoint...");
+            const oldSocket = this.socket;
+            this.socket = null; // Prevent onclose auto-reconnect
+            this.isConnected = false;
+            oldSocket.close();
           }
+          
+          this.connect();
           return accountsData;
         } else {
           throw new Error("OTP response missing URL");
@@ -359,16 +368,23 @@ class DerivService {
 
   private executeLegacyAuth(token: string, resolve: Function, reject: Function) {
     const reqId = ++this.reqIdCounter;
+    const appId = getAppId();
+    
     const listener = (data: any) => {
       if (data.req_id === reqId) {
         this.off(`req_${reqId}`, listener);
         if (data.error) {
-          reject(new Error(data.error.message));
+          const errMsg = data.error.message;
+          if (errMsg.includes('Sorry, an error occurred')) {
+            console.error(`Deriv Security Reject: App ID ${appId} not authorized for this domain/token.`);
+            reject(new Error(`Deriv Access Denied: The App ID (${appId}) is not registered or not permitted for this domain. Check your Deriv Developer Dashboard.`));
+          } else {
+            reject(new Error(errMsg));
+          }
         } else {
           this.isAuthorized = true;
           this.setStatus('authorized');
-          // For legacy, we use the existing socket
-          console.log("Deriv: WebSocket Authorized successfully");
+          console.log(`Deriv: WebSocket Authorized (App ID: ${appId})`);
           resolve(data.authorize);
         }
       }
@@ -384,6 +400,41 @@ class DerivService {
 
   public getAccountId() {
     return this.activeAccountId;
+  }
+
+  public async getApiTokens() {
+    return new Promise((resolve, reject) => {
+      const reqId = ++this.reqIdCounter;
+      const listener = (data: any) => {
+        if (data.req_id === reqId) {
+          this.off(`req_${reqId}`, listener);
+          if (data.error) reject(new Error(data.error.message));
+          else resolve(data.api_token);
+        }
+      };
+      this.on(`req_${reqId}`, listener);
+      this.send({ api_token: 1, req_id: reqId });
+    });
+  }
+
+  public async createApiToken(name: string, scopes: string[] = ['read', 'trade']) {
+    return new Promise((resolve, reject) => {
+      const reqId = ++this.reqIdCounter;
+      const listener = (data: any) => {
+        if (data.req_id === reqId) {
+          this.off(`req_${reqId}`, listener);
+          if (data.error) reject(new Error(data.error.message));
+          else resolve(data.api_token);
+        }
+      };
+      this.on(`req_${reqId}`, listener);
+      this.send({ 
+        api_token: 1, 
+        new_token: name, 
+        new_token_scopes: scopes, 
+        req_id: reqId 
+      });
+    });
   }
 
   public logout() {

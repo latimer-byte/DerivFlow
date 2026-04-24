@@ -24,28 +24,21 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
     setIsDarkMode(!isDarkMode);
   };
 
-  const handleConnectDeriv = () => {
+  const handleConnectDeriv = async () => {
     if (!apiKey) return;
     setIsConnecting(true);
+    setConnectionStatus('idle');
     
-    // Use the real Deriv API to authorize
     try {
-      derivApi.authorize(apiKey);
-      
-      // Wait for authorization status
-      const checkStatus = () => {
-        // We'll trust the derivApi statusListeners for real-time, but for this button:
-        setTimeout(() => {
-          setIsConnecting(false);
-          setConnectionStatus('connected');
-          alert('Deriv API Token authorized! Your terminal is now live.');
-        }, 1500);
-      };
-      checkStatus();
-    } catch (error) {
+      await derivApi.authorize(apiKey);
+      setIsConnecting(false);
+      setConnectionStatus('connected');
+      alert('Deriv API Token authorized! Your terminal is now live.');
+    } catch (error: any) {
       console.error('Failed to connect via settings:', error);
       setIsConnecting(false);
       setConnectionStatus('error');
+      alert(`Handshake Failed: ${error.message || 'Unknown Error'}`);
     }
   };
 
