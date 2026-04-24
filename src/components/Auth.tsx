@@ -12,10 +12,13 @@ export function Auth({ onLogin }: AuthProps) {
   const [loading, setLoading] = useState(false);
   const [manualToken, setManualToken] = useState('');
   const [showManual, setShowManual] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [customClientId, setCustomClientId] = useState(import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn');
+  const [customRedirectUri, setCustomRedirectUri] = useState(import.meta.env.VITE_DERIV_REDIRECT_URI || 'https://deriv-flow.vercel.app/callback');
 
   // Listen for message from OAuth popup
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       if (event.data?.type === 'DERIV_AUTH_COMPLETE') {
         const { code, state, error } = event.data;
         
@@ -27,23 +30,72 @@ export function Auth({ onLogin }: AuthProps) {
         }
 
         if (code) {
-          // Redirect the main window to the root with code/state
-          // App.tsx will detect these params on mount and handle the exchange
-          const url = new URL(window.location.origin + '/');
-          url.searchParams.set('code', code);
-          url.searchParams.set('state', state);
-          window.location.href = url.toString();
+          console.log('Code received from popup, initiating in-place handshaking...');
+          setLoading(true);
+          
+          try {
+            const storedState = sessionStorage.getItem('oauth_state');
+            const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+            const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
+            const storedClientId = sessionStorage.getItem('oauth_client_id');
+            
+            const clientId = storedClientId || customClientId;
+            const redirectUri = storedRedirectUri || customRedirectUri;
+
+            if (state && state !== storedState) {
+              throw new Error('OAuth state mismatch!');
+            }
+
+            if (!codeVerifier) {
+              throw new Error('Missing code verifier for PKCE exchange');
+            }
+
+            // Exchange token in-place to avoid full page reload lag
+            const response = await fetch('/api/deriv/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                code,
+                code_verifier: codeVerifier,
+                redirect_uri: redirectUri,
+                client_id: clientId
+              })
+            });
+
+            const data = await response.json();
+            if (data.access_token) {
+              console.log('In-place handshake successful');
+              const userData = {
+                name: 'Deriv Trader',
+                id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+                email: 'deriv-account',
+                uid: `deriv_${Date.now()}`,
+                authType: 'deriv' as const,
+                derivToken: data.access_token
+              };
+              
+              // Clear session storage
+              sessionStorage.removeItem('oauth_state');
+              sessionStorage.removeItem('pkce_code_verifier');
+              
+              // Notify parent without reload
+              onLogin(userData);
+              localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+            } else {
+              throw new Error(data.error || 'Response missing access token');
+            }
+          } catch (exchangeError: any) {
+            console.error('In-place handshake failed:', exchangeError);
+            alert(`Synchronizing Terminal Failed: ${exchangeError.message}. Please retry.`);
+            setLoading(false);
+          }
         }
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
-
-  const [showConfig, setShowConfig] = useState(false);
-  const [customClientId, setCustomClientId] = useState(import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn');
-  const [customRedirectUri, setCustomRedirectUri] = useState(import.meta.env.VITE_DERIV_REDIRECT_URI || 'https://deriv-flow.vercel.app/callback');
+  }, [onLogin, customClientId, customRedirectUri]);
 
   const handleDerivLogin = async (isSignup = false) => {
     setLoading(true);
@@ -317,7 +369,10 @@ export function Auth({ onLogin }: AuthProps) {
             >
               <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
               {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="animate-pulse">Handshaking with Deriv...</span>
+                </div>
               ) : (
                 <>
                   <Zap className="w-5 h-5 fill-white" />
