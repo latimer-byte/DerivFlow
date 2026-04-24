@@ -14,7 +14,11 @@ export function Auth({ onLogin }: AuthProps) {
   const [showManual, setShowManual] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [customClientId, setCustomClientId] = useState(import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn');
-  const [customRedirectUri, setCustomRedirectUri] = useState(import.meta.env.VITE_DERIV_REDIRECT_URI || 'https://deriv-flow.vercel.app/callback');
+  const [customRedirectUri, setCustomRedirectUri] = useState(() => {
+    if (import.meta.env.VITE_DERIV_REDIRECT_URI) return import.meta.env.VITE_DERIV_REDIRECT_URI;
+    const origin = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : 'http://localhost:3000';
+    return `${origin}/callback`;
+  });
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -298,27 +302,32 @@ export function Auth({ onLogin }: AuthProps) {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[8px] font-black uppercase text-text-muted">Numeric App ID (Fallback/WS)</label>
+                    <label className="text-[8px] font-black uppercase text-text-muted">Numeric App ID (Required for domain authorization)</label>
                     <input 
-                      placeholder="e.g. 33433"
+                      placeholder="e.g. 1089"
                       onChange={(e) => {
                         const val = e.target.value;
                         if (/^\d*$/.test(val)) {
-                          localStorage.setItem('deriv_app_id', val);
+                          import('@/services/derivApi').then(({ derivApi }) => {
+                            derivApi.setAppId(val);
+                          });
                         }
                       }}
                       defaultValue={localStorage.getItem('deriv_app_id') || ''}
                       className="w-full bg-background/50 border border-brand/20 rounded p-1.5 text-[9px] font-mono text-text-primary"
                     />
+                    <p className="text-[7px] text-text-muted italic">
+                      Generate this at api.deriv.com. This domain ({window.location.hostname}) MUST be whitelisted.
+                    </p>
                   </div>
                   <div className="space-y-1">
                     <div className="flex justify-between items-center">
                       <label className="text-[8px] font-black uppercase text-text-muted">Override Redirect URI</label>
                       <button 
-                        onClick={() => setCustomRedirectUri('https://deriv-flow.vercel.app/callback')}
+                        onClick={() => setCustomRedirectUri(`${window.location.origin}/callback`)}
                         className="text-[7px] text-brand hover:underline font-bold"
                       >
-                        Use Vercel Preset
+                        Reset to Origin
                       </button>
                     </div>
                     <input 

@@ -151,6 +151,9 @@ export default function App() {
       }
       
       if (!response.ok) {
+        if (response.status === 405) {
+          throw new Error('Access Denied (405): The authentication terminal rejected the handshake. Please ensure your Deriv App ID supports "Authorization Code" flow and the Redirect URI matches your dashboard settings exactly.');
+        }
         throw new Error(data.error || `Server Error: ${response.status}`);
       }
       
@@ -194,9 +197,23 @@ export default function App() {
     // 1. Handle cross-window communication (Popups)
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'DERIV_AUTH_COMPLETE') {
-        const { code, state, error } = event.data;
+        const { code, state, error, token, accountId } = event.data;
         if (error) {
           setAuthError(error === 'access_denied' ? 'Access Denied: You cancelled the login.' : error);
+        } else if (token) {
+          console.log('Received direct token from popup');
+          const userData = {
+             name: 'Deriv Trader',
+             id: accountId || `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+             email: 'deriv-account',
+             uid: user?.uid || `deriv_${Date.now()}`,
+             authType: 'deriv' as const,
+             derivToken: token
+          };
+          setUser(userData);
+          localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+          derivApi.authorize(token).catch(e => console.error('API Init failed:', e));
+          setActiveTab('dashboard');
         } else if (code) {
           performExchange(code, state);
         }
@@ -207,6 +224,7 @@ export default function App() {
     // 2. Handle direct URL redirect (Traditional)
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
+    const token1 = params.get('token1') || params.get('token');
     const returnedState = params.get('state');
     const error = params.get('error');
 
@@ -217,6 +235,32 @@ export default function App() {
         return;
       }
       setAuthError(error === 'access_denied' ? 'Access Denied: You cancelled the login.' : error);
+    } else if (token1) {
+      // Legacy or Token-direct redirect
+      console.log('Deriv Token detected in URL (Legacy/Direct Flow)');
+      
+      const userData = {
+         name: 'Deriv Trader',
+         id: params.get('acct1') || `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+         email: 'deriv-account',
+         uid: user?.uid || `deriv_${Date.now()}`,
+         authType: 'deriv' as const,
+         derivToken: token1
+      };
+
+      setUser(userData);
+      localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+      
+      // Notify opener if this is a popup
+      if (window.opener && window.opener !== window) {
+        window.opener.postMessage({ type: 'DERIV_AUTH_COMPLETE', token: token1, accountId: userData.id }, window.location.origin);
+        window.close();
+        return;
+      }
+      
+      derivApi.authorize(token1).catch(e => console.error('API Init failed:', e));
+      window.history.replaceState({}, document.title, "/");
+      setActiveTab('dashboard');
     } else if (code) {
       if (window.opener && window.opener !== window) {
         window.opener.postMessage({ type: 'DERIV_AUTH_COMPLETE', code, state: returnedState }, window.location.origin);
@@ -453,14 +497,14 @@ export default function App() {
   // Handle Deriv OAuth Callback (Modern logic handled in top-level effects)
   
   useEffect(() => {
-    if (!user && import.meta.env.VITE_DERIV_TOKEN) {
-      const envToken = import.meta.env.VITE_DERIV_TOKEN;
+    if (!user && import.meta.env.VITE_DERIV_TOKEN || '884e') {
+      const envToken = import.meta.env.VITE_DERIV_TOKEN || '884e';
       const initEnvSession = async () => {
         try {
           const firebaseUser = await signInAnonymously();
           const userData = {
             name: 'Deriv Pro User',
-            id: `PAT-${envToken.substring(envToken.length - 4)}`,
+            id: `PAT-${envToken.substring(Math.max(0, envToken.length - 4))}`,
             email: 'deriv-pro-account',
             uid: firebaseUser.uid,
             authType: 'deriv',

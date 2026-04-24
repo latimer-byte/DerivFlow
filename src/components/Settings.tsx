@@ -206,11 +206,11 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
                   </p>
                   <div className="flex items-center gap-2 p-3 bg-background rounded-xl border border-border group">
                     <code className="text-[10px] font-mono text-brand break-all flex-1">
-                      https://deriv-flow.vercel.app/callback
+                      {window.location.origin}/callback
                     </code>
                     <button 
                       onClick={() => {
-                        navigator.clipboard.writeText('https://deriv-flow.vercel.app/callback');
+                        navigator.clipboard.writeText(`${window.location.origin}/callback`);
                         alert('Redirect URI copied to clipboard!');
                       }}
                       className="p-1.5 hover:bg-secondary rounded-lg transition-colors"
@@ -221,23 +221,40 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-text-muted uppercase tracking-widest ml-1">Deriv App ID</label>
-                  <input 
-                    type="text" 
-                    placeholder="Enter your Deriv App ID (e.g. 1089)"
-                    value={localStorage.getItem('deriv_app_id') || ''}
-                    onChange={(e) => {
-                      const newId = e.target.value;
-                      if (/^[0-9]+$/.test(newId) || newId === '') {
-                        localStorage.setItem('deriv_app_id', newId);
-                        if (newId) derivApi.setAppId(newId);
-                        // Force update local state
-                        setApiKey(prev => prev); 
-                      }
-                    }}
-                    className="w-full bg-secondary/50 border border-border rounded-2xl py-4 px-4 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all font-mono"
-                  />
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Deriv App ID</label>
+                      <button 
+                        onClick={() => {
+                          derivApi.resetAppId();
+                          // Force local storage reload
+                          window.location.reload();
+                        }}
+                        className="text-[10px] text-brand hover:underline font-bold"
+                      >
+                        Reset to Default
+                      </button>
+                    </div>
+                    <input 
+                      type="text" 
+                      placeholder="Enter your Deriv App ID (e.g. 1089)"
+                      value={localStorage.getItem('deriv_app_id') || ''}
+                      onChange={(e) => {
+                        const newId = e.target.value;
+                        if (/^[0-9]*$/.test(newId)) {
+                          derivApi.setAppId(newId);
+                          // Trigger local storage change for UI
+                          setApiKey(prev => prev + ' ');
+                          setApiKey(prev => prev.trim());
+                        }
+                      }}
+                      className="w-full bg-secondary/50 border border-border rounded-2xl py-4 px-4 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all font-mono"
+                    />
+                    <p className="text-[10px] text-text-muted px-1">
+                      Whitelisted domain check: <span className="text-brand font-mono">{window.location.hostname}</span>
+                    </p>
+                  </div>
                 </div>
                 
                 <div className="pt-4 border-t border-border">

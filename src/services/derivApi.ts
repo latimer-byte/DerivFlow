@@ -4,6 +4,7 @@
  */
 
 const DEFAULT_APP_ID = '33433';
+const DEFAULT_CLIENT_ID = '33433jm6aon9vgTQHB9vn';
 const PUBLIC_WS_URL = 'wss://api.derivws.com/trading/v1/options/ws/public';
 
 const getAppId = () => {
@@ -16,7 +17,7 @@ const getAppId = () => {
   if (envAppId && /^\d+$/.test(envAppId)) return envAppId;
 
   // Fallback: extract numeric part from client_id if possible
-  const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || '';
+  const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || DEFAULT_CLIENT_ID;
   const numericMatch = clientId.match(/^(\d+)/);
   if (numericMatch) return numericMatch[1];
 
@@ -57,7 +58,7 @@ class DerivService {
   private activeSubscriptions: Map<string, string> = new Map(); // symbol -> subscriptionId
   private subscriptionCounts: Map<string, number> = new Map(); // symbol -> count
   private reqIdCounter = 0;
-  private token: string | null = localStorage.getItem('deriv_token') || import.meta.env.VITE_DERIV_TOKEN || null;
+  private token: string | null = localStorage.getItem('deriv_token') || import.meta.env.VITE_DERIV_TOKEN || '884e';
   private isAuthorized = false;
   private otpUrl: string | null = null;
   private activeAccountId: string | null = localStorage.getItem('active_account_id');
@@ -369,15 +370,16 @@ class DerivService {
   private executeLegacyAuth(token: string, resolve: Function, reject: Function) {
     const reqId = ++this.reqIdCounter;
     const appId = getAppId();
+    const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'unknown';
     
     const listener = (data: any) => {
       if (data.req_id === reqId) {
         this.off(`req_${reqId}`, listener);
         if (data.error) {
           const errMsg = data.error.message;
-          if (errMsg.includes('Sorry, an error occurred')) {
-            console.error(`Deriv Security Reject: App ID ${appId} not authorized for this domain/token.`);
-            reject(new Error(`Deriv Access Denied: The App ID (${appId}) is not registered or not permitted for this domain. Check your Deriv Developer Dashboard.`));
+          if (errMsg.includes('Sorry, an error occurred') || data.error.code === 'InvalidAppID') {
+            console.error(`Deriv Security Reject: App ID ${appId} not authorized for domain ${currentDomain}.`);
+            reject(new Error(`Deriv Access Denied: The App ID (${appId}) is not registered or not permitted for this domain (${currentDomain}). Please register your App ID at api.deriv.com and add this domain to the whitelist.`));
           } else {
             reject(new Error(errMsg));
           }
@@ -393,9 +395,18 @@ class DerivService {
     this.send({ authorize: token, req_id: reqId });
   }
 
+  public resetAppId() {
+    localStorage.removeItem('deriv_app_id');
+    // Forcing a reconnect will pick up the default or env ID
+    if (this.socket) this.socket.close();
+  }
+
   public setAppId(appId: string) {
     localStorage.setItem('deriv_app_id', appId);
-    if (this.socket) this.socket.close();
+    if (this.socket) {
+      console.log(`Deriv: App ID updated to ${appId}, reconnecting...`);
+      this.socket.close();
+    }
   }
 
   public getAccountId() {
