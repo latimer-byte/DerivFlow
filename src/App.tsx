@@ -108,12 +108,30 @@ export default function App() {
 
     if (error) {
       console.error('OAuth error from Deriv:', error);
+      // If we are in a popup, tell the opener
+      if (window.opener && window.opener !== window) {
+        window.opener.postMessage({ type: 'DERIV_AUTH_COMPLETE', error }, window.location.origin);
+        window.close();
+        return;
+      }
       alert(`Authentication Aborted: ${error}. Please try again.`);
       window.history.replaceState({}, document.title, "/");
       return;
     }
 
     if (code && (path.includes('callback') || path === '/')) {
+      // If we are in a popup, send the code to the opener and CLOSE
+      if (window.opener && window.opener !== window) {
+        console.log('Detected popup context, sending code to opener...');
+        window.opener.postMessage({ 
+          type: 'DERIV_AUTH_COMPLETE', 
+          code, 
+          state: returnedState 
+        }, window.location.origin);
+        window.close();
+        return;
+      }
+
       const storedState = sessionStorage.getItem('oauth_state');
       const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
       const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
@@ -162,26 +180,27 @@ export default function App() {
               derivToken: data.access_token
             };
 
-            // Attempt Firebase linkage for persistence
-            try {
-              const firebaseUser = await signInAnonymously();
-              userData.uid = firebaseUser.uid;
-            } catch (fbError) {
-              console.warn("Firebase linkage failed, using local-only session:", fbError);
-            }
-
-            // Set user immediately to trigger dashboard transition
+            // Set user immediately to trigger dashboard transition (Fast Path)
             console.log('Setting user state and transitioning to terminal...');
             setUser(userData);
             localStorage.setItem('tradepulse_user', JSON.stringify(userData));
 
+            // Background task: Attempt Firebase linkage for persistence
+            signInAnonymously().then(firebaseUser => {
+              console.log("Firebase linkage successful:", firebaseUser.uid);
+              const updatedUser = { ...userData, uid: firebaseUser.uid };
+              setUser(updatedUser);
+              localStorage.setItem('tradepulse_user', JSON.stringify(updatedUser));
+            }).catch(fbError => {
+              console.warn("Firebase linkage failed, continuing with local session:", fbError);
+            });
+
             // Authorize Deriv API (Background authorization)
-            try {
-              await derivApi.authorize(data.access_token);
+            derivApi.authorize(data.access_token).then(() => {
               console.log('Deriv API authorized successfully');
-            } catch (authError) {
+            }).catch(authError => {
               console.error('Deriv API background authorization failed:', authError);
-            }
+            });
             
             sessionStorage.removeItem('oauth_state');
             sessionStorage.removeItem('pkce_code_verifier');

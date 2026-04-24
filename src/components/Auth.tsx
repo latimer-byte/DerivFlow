@@ -27,9 +27,9 @@ export function Auth({ onLogin }: AuthProps) {
         }
 
         if (code) {
-          // Trigger the App.tsx callback logic by updating URL state or just calling a handler
-          // For simplicity, we'll just redirect the main window to the callback path with params
-          const url = new URL(window.location.origin + '/callback');
+          // Redirect the main window to the root with code/state
+          // App.tsx will detect these params on mount and handle the exchange
+          const url = new URL(window.location.origin + '/');
           url.searchParams.set('code', code);
           url.searchParams.set('state', state);
           window.location.href = url.toString();
@@ -103,7 +103,15 @@ export function Auth({ onLogin }: AuthProps) {
         `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,toolbar=no,menubar=no,scrollbars=yes`
       );
 
-      if (!popup) {
+      if (popup) {
+        // Check periodically if the popup is closed to reset loading state
+        const timer = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(timer);
+            setLoading(false);
+          }
+        }, 1000);
+      } else {
         alert('Popup blocked! Please allow popups to continue authentication.');
         setLoading(false);
       }
