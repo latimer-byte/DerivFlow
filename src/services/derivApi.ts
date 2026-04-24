@@ -214,78 +214,98 @@ class DerivService {
    * Modern Authorization Workflow via REST + OTP with legacy API token fallback
    */
   public async authorize(token: string) {
+    if (!token) throw new Error("No token provided for authorization");
+    
     this.token = token;
     localStorage.setItem('deriv_token', token);
     
     // Smart Detection: Legacy API tokens are shorter than OAuth tokens
     const isLegacyToken = token.length < 50;
 
+    console.log(`Deriv: Initiating authorization (Type: ${isLegacyToken ? 'Legacy' : 'Modern'})`);
+
     try {
       if (isLegacyToken) {
-        console.log("Deriv: Short token detected, skipping Hub REST and using WebSocket auth...");
         return await this.legacyAuthorize(token);
       }
 
       // 1. Fetch available accounts (Modern Hub API)
-      const accountsRes = await fetch('/api/deriv/accounts', {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'x-deriv-app-id': getAppId()
-        }
-      });
-      
-      if (!accountsRes.ok) {
-        throw new Error("REST Hub API rejected token. Checking fallback...");
-      }
-      
-      const accountsData = await accountsRes.json();
-      
-      // If Deriv returned an error even with 200 OK (proxy logic)
-      if (accountsData.error) {
-        throw new Error(`REST Hub Error: ${accountsData.error.message || "Unknown"}`);
-      }
+      // We set a strict timeout for the resting hub call to avoid UI lag
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-      const accounts = accountsData.data || [];
-      if (accounts.length === 0) throw new Error("No trading accounts found for this user");
-
-      // 2. Select account (demo preferred for this environment)
-      const demoAccount = accounts.find((a: any) => a.account_type === 'demo') || accounts[0];
-      this.activeAccountId = demoAccount.account_id;
-      localStorage.setItem('active_account_id', this.activeAccountId!);
-      
-      // 3. Get OTP for this account
-      const otpRes = await fetch(`/api/deriv/otp/${this.activeAccountId}`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'x-deriv-app-id': getAppId()
-        }
-      });
-      
-      if (!otpRes.ok) throw new Error("Failed to obtain OTP for authenticated flow");
-      
-      const otpData = await otpRes.json();
-      if (otpData.data?.url) {
-        this.otpUrl = otpData.data.url;
-        this.isAuthorized = true;
+      try {
+        const accountsRes = await fetch('/api/deriv/accounts', {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'x-deriv-app-id': getAppId()
+          },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
         
-        // 4. Force reconnection with the authenticated URL
-        if (this.socket) {
-          this.socket.close();
-        } else {
-          this.connect();
+        if (!accountsRes.ok) {
+          const errText = await accountsRes.text();
+          throw new Error(`Hub API rejected token: ${errText}`);
         }
-        return accountsData;
-      } else {
-        throw new Error("OTP response missing WebSocket URL");
+        
+        const accountsData = await accountsRes.json();
+        
+        if (accountsData.error) {
+          throw new Error(`Hub API Error: ${accountsData.error.message || "Unknown"}`);
+        }
+
+        const accounts = accountsData.data || [];
+        if (accounts.length === 0) throw new Error("No accounts found");
+
+        const demoAccount = accounts.find((a: any) => a.account_type === 'demo') || accounts[0];
+        this.activeAccountId = demoAccount.account_id;
+        localStorage.setItem('active_account_id', this.activeAccountId!);
+        
+        const otpRes = await fetch(`/api/deriv/otp/${this.activeAccountId}`, {
+          method: 'POST',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'x-deriv-app-id': getAppId()
+          }
+        });
+        
+        if (!otpRes.ok) throw new Error("Failed to obtain OTP");
+        
+        const otpData = await otpRes.json();
+        if (otpData.data?.url) {
+          console.log("Deriv: Modern Hub Auth Successful, switching to OTP WebSocket...");
+          this.otpUrl = otpData.data.url;
+          this.isAuthorized = true;
+          
+          if (this.socket) {
+            this.socket.close(); // Triggers reconnect with otpUrl
+          } else {
+            this.connect();
+          }
+          return accountsData;
+        } else {
+          throw new Error("OTP response missing URL");
+        }
+      } catch (restError: any) {
+        if (restError.name === 'AbortError') throw new Error("Hub API Timeout");
+        throw restError;
       }
     } catch (error: any) {
-      console.warn("Modern Hub Auth failed, falling back to WebSocket authorize:", error.message);
+      console.warn(`Deriv: Modern Auth failed (${error.message || 'Error'}), falling back to Legacy WebSocket Auth...`);
       
       // FALLBACK: Traditional WebSocket authorize
       try {
+        // Force a clean websocket connection for legacy auth to ensure fresh state/app_id
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+          console.log("Deriv: Closing existing socket for fresh legacy handshake...");
+          this.socket.close();
+          // Wait a bit for close to propagate
+          await new Promise(r => setTimeout(r, 500));
+        }
+
         const authData = await this.legacyAuthorize(token);
-        console.log("Deriv: WebSocket Auth Fallback Successful:", authData);
+        console.log("Deriv: WebSocket Auth Fallback Successful");
         return authData;
       } catch (fallbackError: any) {
         console.error("Deriv Authentication Total Failure:", fallbackError);

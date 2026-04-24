@@ -74,19 +74,21 @@ export function Auth({ onLogin }: AuthProps) {
                 derivToken: data.access_token
               };
               
-              // Clear session storage
+              // Clear session storage BEFORE notifying parent to avoid re-triggers
               sessionStorage.removeItem('oauth_state');
               sessionStorage.removeItem('pkce_code_verifier');
+              sessionStorage.removeItem('oauth_redirect_uri');
+              sessionStorage.removeItem('oauth_client_id');
               
-              // Notify parent without reload
+              console.log('Handshake complete, notifying app...');
               onLogin(userData);
-              localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+              setLoading(false); // Should be unmounting anyway
             } else {
               throw new Error(data.error || 'Response missing access token');
             }
           } catch (exchangeError: any) {
             console.error('In-place handshake failed:', exchangeError);
-            alert(`Synchronizing Terminal Failed: ${exchangeError.message}. Please retry.`);
+            alert(`Handshake Failed: ${exchangeError.message}. The authorization code might be expired or invalid for this Client ID.`);
             setLoading(false);
           }
         }

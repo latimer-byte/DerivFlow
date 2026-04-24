@@ -98,8 +98,13 @@ export default function App() {
     });
   }, []);
 
+  const [authError, setAuthError] = useState<string | null>(null);
+
   // Check for OAuth callback
   useEffect(() => {
+    // If we already have a user, don't re-process callback params
+    if (user) return;
+
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const returnedState = params.get('state');
@@ -114,8 +119,7 @@ export default function App() {
         window.close();
         return;
       }
-      alert(`Authentication Aborted: ${error}. Please try again.`);
-      window.history.replaceState({}, document.title, "/");
+      setAuthError(error === 'access_denied' ? 'Access Denied: You cancelled the login.' : error);
       return;
     }
 
@@ -132,28 +136,25 @@ export default function App() {
         return;
       }
 
-      const storedState = sessionStorage.getItem('oauth_state');
-      const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
-      const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
-      const storedClientId = sessionStorage.getItem('oauth_client_id');
-      
-      const clientId = storedClientId || import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
-      const origin = window.location.origin.replace(/\/$/, '');
-      const redirectUri = storedRedirectUri || import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + '/callback');
-
-      if (returnedState !== storedState) {
-        console.error('OAuth state mismatch!');
-        return;
-      }
-
-      if (!codeVerifier) {
-        console.error('Missing code verifier for PKCE exchange');
-        return;
-      }
-
-      // Exchange code for token via backend
       const exchangeToken = async () => {
         try {
+          const storedState = sessionStorage.getItem('oauth_state');
+          const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+          const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
+          const storedClientId = sessionStorage.getItem('oauth_client_id');
+          
+          const clientId = storedClientId || import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
+          const origin = window.location.origin.replace(/\/$/, '');
+          const redirectUri = storedRedirectUri || import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + '/callback');
+
+          if (returnedState && storedState && returnedState !== storedState) {
+            throw new Error('Security Breach: OAuth state mismatch detected.');
+          }
+
+          if (!codeVerifier) {
+            throw new Error('Session Expired: Missing PKCE verifier. Please login again.');
+          }
+
           setIsReady(false);
           const response = await fetch('/api/deriv/token', {
             method: 'POST',
@@ -172,12 +173,12 @@ export default function App() {
             
             // Create user data early so we have a fallback
             let userData = {
-              name: 'Deriv Trader',
-              id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
-              email: 'deriv-account',
-              uid: `deriv_${Date.now()}`,
-              authType: 'deriv' as const,
-              derivToken: data.access_token
+               name: 'Deriv Trader',
+               id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
+               email: 'deriv-account',
+               uid: `deriv_${Date.now()}`,
+               authType: 'deriv' as const,
+               derivToken: data.access_token
             };
 
             // Set user immediately to trigger dashboard transition (Fast Path)
@@ -209,14 +210,11 @@ export default function App() {
             window.history.replaceState({}, document.title, "/");
             setActiveTab('dashboard');
           } else {
-            console.error('Token exchange failed: Response missing access token', data);
-            alert('Authentication failed: Could not exchange authorization code for an access token. Please try again.');
-            setIsReady(true);
-            window.history.replaceState({}, document.title, "/");
+            throw new Error(data.error || 'The authorization code is invalid or expired.');
           }
-        } catch (error) {
-          console.error('Error during token exchange:', error);
-          alert('A network error occurred during authentication. Check your connection.');
+        } catch (err: any) {
+          console.error('Error during token exchange:', err);
+          setAuthError(err.message);
         } finally {
           setIsReady(true);
         }
@@ -224,7 +222,7 @@ export default function App() {
 
       exchangeToken();
     }
-  }, []);
+  }, [user]);
 
   // Sync state with local storage AND cloud when user UID is available
   useEffect(() => {
@@ -595,25 +593,60 @@ export default function App() {
     }
   };
 
+  const handleReturnToLogin = () => {
+    setAuthError(null);
+    window.history.replaceState({}, document.title, "/");
+    // Clear potentially corrupt params
+    const url = new URL(window.location.href);
+    url.search = '';
+    window.location.href = url.toString();
+  };
+
   if (!user && (window.location.pathname === '/callback' || window.location.search.includes('code='))) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center">
         <motion.div 
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="w-24 h-24 bg-brand rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-brand/20"
+          className={cn(
+            "w-24 h-24 rounded-3xl flex items-center justify-center mb-8 shadow-2xl transition-colors duration-500",
+            authError ? "bg-red-500 shadow-red-500/20" : "bg-brand shadow-brand/20"
+          )}
         >
-          <Zap className="text-background w-12 h-12 fill-background animate-pulse" />
+          {authError ? (
+            <Zap className="text-white w-12 h-12" />
+          ) : (
+            <Zap className="text-background w-12 h-12 fill-background animate-pulse" />
+          )}
         </motion.div>
-        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-text-primary mb-2">Synchronizing Terminal</h2>
-        <p className="text-text-muted text-xs font-bold uppercase tracking-widest leading-relaxed max-w-xs">
-          Handshaking with Deriv Cloud and securing your session variables...
+        
+        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-text-primary mb-2">
+          {authError ? "Handshake Failed" : "Synchronizing Terminal"}
+        </h2>
+        
+        <p className={cn(
+          "text-xs font-bold uppercase tracking-widest leading-relaxed max-w-xs",
+          authError ? "text-red-400" : "text-text-muted"
+        )}>
+          {authError || "Handshaking with Deriv Cloud and securing your session variables..."}
         </p>
-        <div className="mt-12 flex gap-2">
-          <div className="w-2 h-2 rounded-full bg-brand animate-bounce" />
-          <div className="w-2 h-2 rounded-full bg-brand animate-bounce [animation-delay:0.2s]" />
-          <div className="w-2 h-2 rounded-full bg-brand animate-bounce [animation-delay:0.4s]" />
-        </div>
+
+        {authError ? (
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={handleReturnToLogin}
+            className="mt-12 px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+          >
+            Return to Access Terminal
+          </motion.button>
+        ) : (
+          <div className="mt-12 flex gap-2">
+            <div className="w-2 h-2 rounded-full bg-brand animate-bounce" />
+            <div className="w-2 h-2 rounded-full bg-brand animate-bounce [animation-delay:0.2s]" />
+            <div className="w-2 h-2 rounded-full bg-brand animate-bounce [animation-delay:0.4s]" />
+          </div>
+        )}
       </div>
     );
   }
