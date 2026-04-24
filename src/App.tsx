@@ -139,7 +139,20 @@ export default function App() {
         })
       });
 
-      const data = await response.json();
+      // Handle non-JSON or error responses gracefully
+      let data: any;
+      const responseText = await response.text();
+      
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error('Failed to parse Deriv response:', responseText);
+        throw new Error('Terminal responded with invalid data format. Please try again.');
+      }
+      
+      if (!response.ok) {
+        throw new Error(data.error || `Server Error: ${response.status}`);
+      }
       
       if (data.access_token) {
         console.log('Deriv Token Exchange Successful (Background Handshake)');

@@ -40,14 +40,15 @@ async function startServer() {
       });
 
       const contentType = response.headers.get("content-type");
-      let data;
+      const responseText = await response.text();
+      let data: any;
       
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        console.warn("Deriv Token Endpoint returned non-JSON response:", text);
-        data = { error: text || "Invalid response from Deriv token endpoint" };
+      try {
+        data = (contentType && contentType.includes("application/json") && responseText) 
+          ? JSON.parse(responseText) 
+          : { error: responseText || "Invalid response from Deriv token endpoint" };
+      } catch (e) {
+        data = { error: "Failed to parse Deriv token response" };
       }
 
       if (!response.ok) {

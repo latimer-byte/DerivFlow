@@ -16,7 +16,7 @@ export function Auth({ onLogin }: AuthProps) {
   const [customClientId, setCustomClientId] = useState(import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn');
   const [customRedirectUri, setCustomRedirectUri] = useState(import.meta.env.VITE_DERIV_REDIRECT_URI || 'https://deriv-flow.vercel.app/callback');
 
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -38,7 +38,7 @@ export function Auth({ onLogin }: AuthProps) {
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!identifier || !password) return;
     
     setLoading(true);
     try {
@@ -46,19 +46,25 @@ export function Auth({ onLogin }: AuthProps) {
       const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('@/lib/firebase');
       let userCredential;
       
+      // If it's a phone number or username, we might need a different lookup, 
+      // but for simplicity we'll assume identifier is used as email for login
+      // or the user provides email.
+      const emailValue = identifier.includes('@') ? identifier : `${identifier}@tradepulse.local`;
+
       if (isLogin) {
-        userCredential = await signInWithEmailAndPassword(email, password);
+        userCredential = await signInWithEmailAndPassword(emailValue, password);
       } else {
-        userCredential = await createUserWithEmailAndPassword(email, password);
+        userCredential = await createUserWithEmailAndPassword(emailValue, password);
       }
 
       const userData = {
-        name: email.split('@')[0],
-        email: email,
+        name: identifier.split('@')[0],
+        email: emailValue,
         uid: userCredential.user.uid,
         authType: 'firebase' as const
       };
       
+      // Directly log in - the app will handle any background deriv sync if needed
       onLogin(userData);
       localStorage.setItem('tradepulse_user', JSON.stringify(userData));
     } catch (error: any) {
@@ -337,10 +343,10 @@ export function Auth({ onLogin }: AuthProps) {
               <div className="space-y-4">
                 <div className="relative">
                   <input 
-                    type="email"
-                    placeholder="EMAIL ADDRESS"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    placeholder="USERNAME / EMAIL / PHONE"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
                     required
                     className="w-full bg-secondary/30 border border-border focus:border-brand rounded-2xl py-4 px-5 text-xs font-bold text-text-primary outline-none transition-all placeholder:text-text-muted/50"
                   />
