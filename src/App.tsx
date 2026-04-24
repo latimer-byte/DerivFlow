@@ -116,10 +116,12 @@ export default function App() {
     if (code && (path.includes('callback') || path === '/')) {
       const storedState = sessionStorage.getItem('oauth_state');
       const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+      const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
+      const storedClientId = sessionStorage.getItem('oauth_client_id');
       
-      const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
+      const clientId = storedClientId || import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
       const origin = window.location.origin.replace(/\/$/, '');
-      const redirectUri = import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + '/callback');
+      const redirectUri = storedRedirectUri || import.meta.env.VITE_DERIV_REDIRECT_URI || (origin + '/callback');
 
       if (returnedState !== storedState) {
         console.error('OAuth state mismatch!');

@@ -43,7 +43,7 @@ export function Auth({ onLogin }: AuthProps) {
 
   const [showConfig, setShowConfig] = useState(false);
   const [customClientId, setCustomClientId] = useState(import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn');
-  const [customRedirectUri, setCustomRedirectUri] = useState(import.meta.env.VITE_DERIV_REDIRECT_URI || `${window.location.origin.replace(/\/$/, '')}/callback`);
+  const [customRedirectUri, setCustomRedirectUri] = useState(import.meta.env.VITE_DERIV_REDIRECT_URI || 'https://deriv-flow.vercel.app/callback');
 
   const handleDerivLogin = async (isSignup = false) => {
     setLoading(true);
@@ -68,21 +68,25 @@ export function Auth({ onLogin }: AuthProps) {
 
       sessionStorage.setItem('pkce_code_verifier', codeVerifier);
       sessionStorage.setItem('oauth_state', state);
+      sessionStorage.setItem('oauth_redirect_uri', redirectUri);
+      sessionStorage.setItem('oauth_client_id', clientId);
 
-      // Using oauth.deriv.com for broader compatibility with older/standalone apps
-      const baseUrl = "https://oauth.deriv.com/oauth2/authorize";
+      // Using auth.deriv.com as per the provided guide
+      const baseUrl = "https://auth.deriv.com/oauth2/auth";
       const params = new URLSearchParams({
         response_type: 'code',
-        app_id: clientId,
         client_id: clientId,
         redirect_uri: redirectUri,
-        scope: 'read trade',
+        scope: 'trade account_manage', // Standard scopes from the guide
         state: state,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
-        brand: 'deriv',
-        l: 'EN'
       });
+
+      // If legacy app support is needed
+      if (clientId.match(/^\d+$/)) {
+        params.append('app_id', clientId);
+      }
 
       if (isSignup) params.append('prompt', 'registration');
 
@@ -218,9 +222,9 @@ export function Auth({ onLogin }: AuthProps) {
               </div>
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <p className="text-[9px] text-text-muted font-bold uppercase">Required Redirect URI:</p>
+                  <p className="text-[9px] text-text-muted font-bold uppercase">Active Redirect URI:</p>
                   <code className="text-[9px] text-text-primary bg-background p-1.5 rounded border border-border block break-all leading-relaxed font-mono">
-                    {window.location.origin.replace(/\/$/, '')}/callback
+                    {customRedirectUri}
                   </code>
                 </div>
                 <div className="space-y-1">
@@ -256,7 +260,15 @@ export function Auth({ onLogin }: AuthProps) {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[8px] font-black uppercase text-text-muted">Override Redirect URI</label>
+                    <div className="flex justify-between items-center">
+                      <label className="text-[8px] font-black uppercase text-text-muted">Override Redirect URI</label>
+                      <button 
+                        onClick={() => setCustomRedirectUri('https://deriv-flow.vercel.app/callback')}
+                        className="text-[7px] text-brand hover:underline font-bold"
+                      >
+                        Use Vercel Preset
+                      </button>
+                    </div>
                     <input 
                       value={customRedirectUri}
                       onChange={(e) => setCustomRedirectUri(e.target.value)}
