@@ -16,6 +16,10 @@ export function Auth({ onLogin }: AuthProps) {
   const [customClientId, setCustomClientId] = useState(import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn');
   const [customRedirectUri, setCustomRedirectUri] = useState(import.meta.env.VITE_DERIV_REDIRECT_URI || 'https://deriv-flow.vercel.app/callback');
 
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
   // Listen for message from OAuth popup to stop local loading state
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -31,6 +35,39 @@ export function Auth({ onLogin }: AuthProps) {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, []);
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+    
+    setLoading(true);
+    try {
+      // Direct Firebase Login
+      const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('@/lib/firebase');
+      let userCredential;
+      
+      if (isLogin) {
+        userCredential = await signInWithEmailAndPassword(email, password);
+      } else {
+        userCredential = await createUserWithEmailAndPassword(email, password);
+      }
+
+      const userData = {
+        name: email.split('@')[0],
+        email: email,
+        uid: userCredential.user.uid,
+        authType: 'firebase' as const
+      };
+      
+      onLogin(userData);
+      localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+    } catch (error: any) {
+      console.error('Credentials login failed:', error);
+      alert(`Terminal Access Denied: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDerivLogin = async (isSignup = false) => {
     setLoading(true);
@@ -296,25 +333,62 @@ export function Auth({ onLogin }: AuthProps) {
           </div>
 
           <div className="space-y-6 pt-4">
+            <form onSubmit={handleEmailLogin} className="space-y-4">
+              <div className="space-y-4">
+                <div className="relative">
+                  <input 
+                    type="email"
+                    placeholder="EMAIL ADDRESS"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="w-full bg-secondary/30 border border-border focus:border-brand rounded-2xl py-4 px-5 text-xs font-bold text-text-primary outline-none transition-all placeholder:text-text-muted/50"
+                  />
+                </div>
+                <div className="relative">
+                  <input 
+                    type="password"
+                    placeholder="PASSWORD"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="w-full bg-secondary/30 border border-border focus:border-brand rounded-2xl py-4 px-5 text-xs font-bold text-text-primary outline-none transition-all placeholder:text-text-muted/50"
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-brand text-background rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:opacity-90 disabled:opacity-50 transition-all shadow-lg shadow-brand/20 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <div className="w-4 h-4 border-2 border-background/30 border-t-background rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span>Initialize Access</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <div className="relative flex justify-center text-[9px] uppercase font-black tracking-[0.3em]">
+                <span className="bg-background px-3 text-text-muted">Or cloud handshake</span>
+              </div>
+            </div>
+
             <button 
               type="button"
               onClick={() => handleDerivLogin(!isLogin)}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-4 py-5 bg-[#ff444f] hover:bg-[#e63e46] rounded-2xl transition-all text-xs font-black text-white uppercase tracking-widest italic shadow-xl shadow-red-500/20 group relative overflow-hidden"
+              className="w-full flex items-center justify-center gap-4 py-4 border border-brand/30 bg-brand/5 hover:bg-brand/10 rounded-2xl transition-all text-[11px] font-black text-brand uppercase tracking-[0.2em] italic group relative overflow-hidden"
             >
-              <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-              {loading ? (
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span className="animate-pulse">Handshaking with Deriv...</span>
-                </div>
-              ) : (
-                <>
-                  <Zap className="w-5 h-5 fill-white" />
-                  <span>Connect with Deriv Account</span>
-                  <ArrowRight className="w-4 h-4 ml-auto" />
-                </>
-              )}
+              <Zap className="w-4 h-4 fill-brand" />
+              <span>Sync with Deriv Cloud</span>
             </button>
 
             <div className="relative">

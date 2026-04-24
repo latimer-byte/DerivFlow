@@ -102,9 +102,19 @@ export default function App() {
 
   // Unified token exchange handler
   const performExchange = async (code: string, returnedState: string | null) => {
+    // Check if we have the verifier - if not, we can't do modern PKCE
+    const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+    
+    if (!codeVerifier) {
+      console.warn('Deriv: Redirected with code but missing PKCE verifier. Redirecting back to login.');
+      setAuthError('Session Expired: Missing authorization verifier. Please try logging in again.');
+      // Clean URL to prevent infinite reload
+      window.history.replaceState({}, document.title, "/");
+      return;
+    }
+
     try {
       const storedState = sessionStorage.getItem('oauth_state');
-      const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
       const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
       const storedClientId = sessionStorage.getItem('oauth_client_id');
       
@@ -116,11 +126,8 @@ export default function App() {
         throw new Error('Security Breach: OAuth state mismatch detected.');
       }
 
-      if (!codeVerifier) {
-        throw new Error('Session Expired: Missing PKCE verifier. Please login again.');
-      }
-
-      setIsReady(false);
+      // Background process - don't block the UI if we already have a user
+      // but if we don't have a user, show a non-intrusive loading state
       const response = await fetch('/api/deriv/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,13 +142,13 @@ export default function App() {
       const data = await response.json();
       
       if (data.access_token) {
-        console.log('Deriv Token Exchange Successful (In-Place Handshake)');
+        console.log('Deriv Token Exchange Successful (Background Handshake)');
         
         const userData = {
            name: 'Deriv Trader',
            id: `CR${Math.floor(Math.random() * 9000 + 1000)}`,
            email: 'deriv-account',
-           uid: `deriv_${Date.now()}`,
+           uid: user?.uid || `deriv_${Date.now()}`,
            authType: 'deriv' as const,
            derivToken: data.access_token
         };
@@ -150,20 +157,12 @@ export default function App() {
         setUser(userData);
         localStorage.setItem('tradepulse_user', JSON.stringify(userData));
         
-        // Clear all security artifacts from session
-        sessionStorage.removeItem('oauth_state');
+        // Clear artifact
         sessionStorage.removeItem('pkce_code_verifier');
-        sessionStorage.removeItem('oauth_redirect_uri');
-        sessionStorage.removeItem('oauth_client_id');
+        sessionStorage.removeItem('oauth_state');
 
-        // Parallel background initializations
-        signInAnonymously().then(firebaseUser => {
-          const updatedUser = { ...userData, uid: firebaseUser.uid };
-          setUser(updatedUser);
-          localStorage.setItem('tradepulse_user', JSON.stringify(updatedUser));
-        }).catch(e => console.warn('Persistence sync deferred:', e));
-
-        derivApi.authorize(data.access_token).catch(e => console.error('API Init failed:', e));
+        // Silent authorization
+        derivApi.authorize(data.access_token).catch(e => console.error('Background API Init failed:', e));
         
         window.history.replaceState({}, document.title, "/");
         setActiveTab('dashboard');
@@ -171,10 +170,9 @@ export default function App() {
         throw new Error(data.error || 'The authorization code is invalid or expired.');
       }
     } catch (err: any) {
-      console.error('Handshake Error:', err);
+      console.error('Background Handshake Error:', err);
       setAuthError(err.message);
-    } finally {
-      setIsReady(true);
+      // If we are on the dashboard, maybe show a generic "Connection Error" instead of blocking
     }
   };
 
@@ -193,15 +191,13 @@ export default function App() {
     };
     window.addEventListener('message', handleMessage);
 
-    // 2. Handle direct URL redirect
+    // 2. Handle direct URL redirect (Traditional)
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const returnedState = params.get('state');
     const error = params.get('error');
-    const path = window.location.pathname;
 
     if (error) {
-      // If we are in a popup, tell the opener and close
       if (window.opener && window.opener !== window) {
         window.opener.postMessage({ type: 'DERIV_AUTH_COMPLETE', error }, window.location.origin);
         window.close();
@@ -209,21 +205,18 @@ export default function App() {
       }
       setAuthError(error === 'access_denied' ? 'Access Denied: You cancelled the login.' : error);
     } else if (code) {
-      // If we are in a popup, send code and close
       if (window.opener && window.opener !== window) {
         window.opener.postMessage({ type: 'DERIV_AUTH_COMPLETE', code, state: returnedState }, window.location.origin);
         window.close();
         return;
       }
       
-      // If in main window and not yet handled, start exchange
-      if (!user) {
-        performExchange(code, returnedState);
-      }
+      // Background exchange
+      performExchange(code, returnedState);
     }
 
     return () => window.removeEventListener('message', handleMessage);
-  }, [user]);
+  }, []);
 
   // Sync state with local storage AND cloud when user UID is available
   useEffect(() => {
@@ -603,55 +596,6 @@ export default function App() {
     window.location.href = url.toString();
   };
 
-  if (!user && (window.location.pathname === '/callback' || window.location.search.includes('code='))) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center">
-        <motion.div 
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className={cn(
-            "w-24 h-24 rounded-3xl flex items-center justify-center mb-8 shadow-2xl transition-colors duration-500",
-            authError ? "bg-red-500 shadow-red-500/20" : "bg-brand shadow-brand/20"
-          )}
-        >
-          {authError ? (
-            <Zap className="text-white w-12 h-12" />
-          ) : (
-            <Zap className="text-background w-12 h-12 fill-background animate-pulse" />
-          )}
-        </motion.div>
-        
-        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-text-primary mb-2">
-          {authError ? "Handshake Failed" : "Synchronizing Terminal"}
-        </h2>
-        
-        <p className={cn(
-          "text-xs font-bold uppercase tracking-widest leading-relaxed max-w-xs",
-          authError ? "text-red-400" : "text-text-muted"
-        )}>
-          {authError || "Handshaking with Deriv Cloud and securing your session variables..."}
-        </p>
-
-        {authError ? (
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            onClick={handleReturnToLogin}
-            className="mt-12 px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-          >
-            Return to Access Terminal
-          </motion.button>
-        ) : (
-          <div className="mt-12 flex gap-2">
-            <div className="w-2 h-2 rounded-full bg-brand animate-bounce" />
-            <div className="w-2 h-2 rounded-full bg-brand animate-bounce [animation-delay:0.2s]" />
-            <div className="w-2 h-2 rounded-full bg-brand animate-bounce [animation-delay:0.4s]" />
-          </div>
-        )}
-      </div>
-    );
-  }
-
   if (!user) {
     return (
       <ErrorBoundary>
@@ -660,6 +604,48 @@ export default function App() {
           setActiveTab('dashboard');
           if (u.derivToken) derivApi.authorize(u.derivToken);
         }} />
+        {/* Transparent Overlay for background handshake if redirect happened */}
+        {window.location.search.includes('code=') && !authError && (
+          <div className="fixed inset-0 bg-background/50 backdrop-blur-sm flex flex-col items-center justify-center z-50">
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="w-20 h-20 bg-brand rounded-2xl flex items-center justify-center mb-6 shadow-2xl shadow-brand/20"
+            >
+              <Zap className="text-background w-10 h-10 fill-background animate-pulse" />
+            </motion.div>
+            <h2 className="text-xl font-black italic uppercase tracking-tighter text-text-primary mb-1">Handshaking</h2>
+            <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Securing Cloud Terminal...</p>
+          </div>
+        )}
+        
+        {/* Error Modal for handshake failures */}
+        <AnimatePresence>
+          {authError && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-background/80 backdrop-blur-md flex items-center justify-center z-[100] p-6"
+            >
+              <div className="bg-card border border-red-500/30 p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl shadow-red-500/10">
+                <div className="w-16 h-16 bg-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Zap className="text-white w-8 h-8" />
+                </div>
+                <h2 className="text-xl font-black italic uppercase tracking-tighter text-text-primary mb-2">Access Denied</h2>
+                <p className="text-xs font-bold text-red-400 uppercase tracking-widest leading-relaxed mb-8">
+                  {authError}
+                </p>
+                <button 
+                  onClick={handleReturnToLogin}
+                  className="w-full py-4 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+                >
+                  Restart Handshake
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </ErrorBoundary>
     );
   }
