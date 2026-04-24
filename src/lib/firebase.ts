@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged as firebaseOnAuthStateChanged, User, signInAnonymously as firebaseSignInAnonymously, signInWithEmailAndPassword as firebaseSignInWithEmailAndPassword, createUserWithEmailAndPassword as firebaseCreateUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged as firebaseOnAuthStateChanged, User, signInAnonymously as firebaseSignInAnonymously, signInWithEmailAndPassword as firebaseSignInWithEmailAndPassword, createUserWithEmailAndPassword as firebaseCreateUserWithEmailAndPassword, updateProfile as firebaseUpdateProfile } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, getDocFromServer, Timestamp } from 'firebase/firestore';
 
 // ... (config remains same)
@@ -151,6 +151,14 @@ export const createUserWithEmailAndPassword = async (email: string, pass: string
     return { user: { uid: 'mock-email-user', email } };
   }
   return firebaseCreateUserWithEmailAndPassword(auth, email, pass);
+};
+
+export const updateProfile = async (user: User, profile: { displayName?: string; photoURL?: string }) => {
+  if (auth?.isMock) {
+    console.warn("Using mock update profile");
+    return;
+  }
+  return firebaseUpdateProfile(user, profile);
 };
 
 export const signInAnonymously = async () => {

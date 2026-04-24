@@ -18,7 +18,6 @@ export function Auth({ onLogin }: AuthProps) {
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   // Listen for message from OAuth popup to stop local loading state
   useEffect(() => {
@@ -43,45 +42,45 @@ export function Auth({ onLogin }: AuthProps) {
     setLoading(true);
     try {
       // Direct Firebase Login
-      const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('@/lib/firebase');
+      const { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } = await import('@/lib/firebase');
       let userCredential;
       
-      // If it's a phone number or username, we might need a different lookup, 
-      // but for simplicity we'll assume identifier is used as email for login
-      // or the user provides email.
-      const emailValue = identifier.includes('@') ? identifier : `${identifier}@tradepulse.local`;
+      const emailValue = identifier.includes('@') ? identifier : `${identifier}@tradepulse.io`;
 
       if (isLogin) {
         userCredential = await signInWithEmailAndPassword(emailValue, password);
       } else {
         userCredential = await createUserWithEmailAndPassword(emailValue, password);
+        // @ts-ignore
+        await updateProfile(userCredential.user, {
+          displayName: identifier.split('@')[0]
+        });
       }
 
       const userData = {
-        name: identifier.split('@')[0],
+        name: userCredential.user.displayName || identifier.split('@')[0],
         email: emailValue,
         uid: userCredential.user.uid,
         authType: 'firebase' as const
       };
       
-      // Directly log in - the app will handle any background deriv sync if needed
       onLogin(userData);
       localStorage.setItem('tradepulse_user', JSON.stringify(userData));
     } catch (error: any) {
       console.error('Credentials login failed:', error);
-      alert(`Terminal Access Denied: ${error.message}`);
+      alert(`Terminal Access Denied: ${error.code === 'auth/user-not-found' ? 'Account not discovered.' : error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDerivLogin = async (isSignup = false) => {
+  const handleDerivLogin = async (forceSignup = false) => {
     setLoading(true);
     try {
       const clientId = customClientId;
       const redirectUri = customRedirectUri;
       
-      // 1. PKCE
+      // PKCE
       const array = crypto.getRandomValues(new Uint8Array(64));
       const codeVerifier = Array.from(array)
         .map(v => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'[v % 66])
@@ -101,30 +100,28 @@ export function Auth({ onLogin }: AuthProps) {
       sessionStorage.setItem('oauth_redirect_uri', redirectUri);
       sessionStorage.setItem('oauth_client_id', clientId);
 
-      // Using auth.deriv.com as per the provided guide
       const baseUrl = "https://auth.deriv.com/oauth2/auth";
       const params = new URLSearchParams({
         response_type: 'code',
         client_id: clientId,
         redirect_uri: redirectUri,
-        scope: 'read trade', // Standardized scope
+        scope: 'read trade',
         state: state,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
       });
 
-      // Always include numeric app_id if we can derive it from client_id
       const numericAppId = clientId.match(/^(\d+)/)?.[1];
       if (numericAppId) {
         params.append('app_id', numericAppId);
       }
 
-      if (isSignup) params.append('prompt', 'registration');
+      if (forceSignup) params.append('prompt', 'registration');
 
       const derivLoginUrl = `${baseUrl}?${params.toString()}`;
       
       const width = 600;
-      const height = 700;
+      const height = 750;
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
       
@@ -135,7 +132,6 @@ export function Auth({ onLogin }: AuthProps) {
       );
 
       if (popup) {
-        // Check periodically if the popup is closed to reset loading state
         const timer = setInterval(() => {
           if (popup.closed) {
             clearInterval(timer);
@@ -143,7 +139,7 @@ export function Auth({ onLogin }: AuthProps) {
           }
         }, 1000);
       } else {
-        alert('Popup blocked! Please allow popups to continue authentication.');
+        alert('Universal Handshake Interrupted: Please enable popups to sync with Deriv Cloud.');
         setLoading(false);
       }
     } catch (error) {
@@ -155,6 +151,7 @@ export function Auth({ onLogin }: AuthProps) {
   const handleManualTokenLogin = () => {
     if (!manualToken.trim()) return;
     
+    setLoading(true);
     // Simulate successful OAuth result with direct token
     const userData = {
       name: 'Deriv Trader',
@@ -165,323 +162,280 @@ export function Auth({ onLogin }: AuthProps) {
       derivToken: manualToken.trim()
     };
     
-    onLogin(userData);
-    localStorage.setItem('tradepulse_user', JSON.stringify(userData));
-    localStorage.setItem('deriv_token', manualToken.trim());
+    setTimeout(() => {
+      onLogin(userData);
+      localStorage.setItem('tradepulse_user', JSON.stringify(userData));
+      localStorage.setItem('deriv_token', manualToken.trim());
+      setLoading(false);
+    }, 800);
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row items-stretch justify-center overflow-hidden">
-      {/* Visual Side (Left) - Inspired by modern trading platforms */}
-      <div className="hidden md:flex md:w-1/2 bg-card relative items-center justify-center p-12 overflow-hidden border-r border-border">
+      {/* Visual Side (Left) */}
+      <div className="hidden md:flex md:w-1/2 bg-[#0a0a0a] relative items-center justify-center p-12 overflow-hidden border-r border-[#1a1a1a]">
         <div className="absolute inset-0 z-0">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand/20 rounded-full blur-[100px] animate-pulse" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-rose-500/10 rounded-full blur-[100px]" />
-          <div className="absolute inset-0 technical-grid opacity-10" />
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-rose-500/5 rounded-full blur-[120px] translate-y-1/2 -translate-x-1/2" />
+          <div className="absolute inset-0 technical-grid opacity-[0.03]" />
+          
+          {/* Animated Matrix-like lines */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
+             {[...Array(6)].map((_, i) => (
+               <motion.div
+                 key={i}
+                 initial={{ y: -100, opacity: 0 }}
+                 animate={{ y: 800, opacity: [0, 1, 0] }}
+                 transition={{ 
+                   duration: 5 + i, 
+                   repeat: Infinity, 
+                   ease: "linear",
+                   delay: i * 0.8
+                 }}
+                 style={{ left: `${(i + 1) * 15}%` }}
+                 className="absolute w-[1px] h-32 bg-gradient-to-b from-transparent via-brand to-transparent"
+               />
+             ))}
+          </div>
         </div>
         
-        <div className="relative z-10 max-w-md text-center">
+        <div className="relative z-10 max-w-md">
           <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.8 }}
-            className="mb-8 flex justify-center"
+            transition={{ duration: 1, ease: [0.23, 1, 0.32, 1] }}
+            className="mb-10"
           >
-            <div className="w-20 h-20 bg-brand rounded-[2rem] flex items-center justify-center shadow-2xl shadow-brand/40">
-              <Zap className="text-background w-10 h-10 fill-background" />
+            <div className="w-16 h-16 bg-brand rounded-2xl flex items-center justify-center shadow-[0_0_40px_rgba(255,68,0,0.3)]">
+              <Zap className="text-black w-8 h-8 fill-black" />
             </div>
           </motion.div>
-          <motion.h2 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-4xl font-black italic uppercase tracking-tighter text-brand mb-2"
-          >
-            TradePulse
-          </motion.h2>
-          <motion.h3 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.25 }}
-            className="text-xl font-bold italic uppercase tracking-tighter text-text-primary mb-4"
-          >
-            Master the Market Pulse
-          </motion.h3>
-          <motion.p 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-text-muted text-sm font-medium uppercase tracking-widest leading-relaxed"
-          >
-            Join the elite tier of traders using AI-driven insights and low-latency execution.
-          </motion.p>
-        </div>
+          
+          <div className="space-y-6">
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <h1 className="text-6xl font-black italic uppercase tracking-tighter text-white leading-none mb-1">
+                Trade<span className="text-brand">Pulse</span>
+              </h1>
+              <p className="text-brand text-xs font-black uppercase tracking-[0.4em] mb-4">Autonomous Intelligence</p>
+            </motion.div>
 
-        {/* Floating Stats Mockup */}
-        <div className="absolute bottom-12 left-12 right-12 flex justify-between gap-4">
-          <div className="bg-background/40 backdrop-blur-md border border-border/50 p-4 rounded-2xl flex-1">
-            <p className="text-[10px] font-bold text-text-muted uppercase mb-1">Live Traders</p>
-            <p className="text-xl font-black text-text-primary italic">14,204+</p>
+            <motion.p 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-text-muted text-sm font-medium uppercase tracking-widest leading-relaxed max-w-xs"
+            >
+              The definitive frontier for synthetic assets and low-latency algorithmic execution.
+            </motion.p>
           </div>
-          <div className="bg-background/40 backdrop-blur-md border border-border/50 p-4 rounded-2xl flex-1">
-            <p className="text-[10px] font-bold text-text-muted uppercase mb-1">24h Volume</p>
-            <p className="text-xl font-black text-brand italic">$2.4B</p>
-          </div>
+
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-16 flex flex-wrap gap-4"
+          >
+            <div className="px-4 py-2 border border-white/5 bg-white/[0.02] rounded-xl flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-brand animate-pulse" />
+              <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Network: Live</span>
+            </div>
+            <div className="px-4 py-2 border border-white/5 bg-white/[0.02] rounded-xl flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Latency: 12ms</span>
+            </div>
+          </motion.div>
         </div>
       </div>
 
       {/* Auth Side (Right) */}
       <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12 bg-background">
         <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="w-full max-w-sm space-y-8"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-sm"
         >
-          {/* Mobile Logo */}
-          <div className="md:hidden flex flex-col items-center mb-12">
-            <div className="w-12 h-12 bg-brand rounded-2xl flex items-center justify-center mb-4">
-              <Zap className="text-background w-6 h-6 fill-background" />
-            </div>
-            <h1 className="text-2xl font-black italic uppercase tracking-tighter text-text-primary">TradePulse</h1>
+          {/* Header */}
+          <div className="mb-10 text-center md:text-left transition-all">
+            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-text-primary mb-2">
+              {isLogin ? 'Access System' : 'Initialize Node'}
+            </h2>
+            <p className="text-text-muted text-[10px] font-black uppercase tracking-widest">
+              {isLogin ? 'Standard Authentication Protocol' : 'New User Onboarding Sequence'}
+            </p>
           </div>
 
-          <div className="space-y-2">
-            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-text-primary text-center md:text-left">
-              {isLogin ? 'Access Terminal' : 'Join Terminal'}
-            </h1>
-            <p className="text-text-muted text-xs font-bold uppercase tracking-widest text-center md:text-left">
-              {isLogin ? 'Authenticate with your Deriv credentials' : 'Create an account via Deriv to start trading'}
-            </p>
-            <div className="bg-brand/5 border border-brand/20 rounded-xl p-4 space-y-3 mt-4">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] text-brand font-black uppercase tracking-widest">OAuth Config Check</p>
-                <div className="flex gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand animate-ping" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="space-y-1">
-                  <p className="text-[9px] text-text-muted font-bold uppercase">Active Redirect URI:</p>
-                  <code className="text-[9px] text-text-primary bg-background p-1.5 rounded border border-border block break-all leading-relaxed font-mono">
-                    {customRedirectUri}
-                  </code>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[9px] text-text-muted font-bold uppercase">Active OAuth Client ID:</p>
-                  <code className="text-[9px] text-text-primary bg-background p-1.5 rounded border border-border block font-mono">
-                    {customClientId}
-                  </code>
-                </div>
-              </div>
-              <p className="text-[9px] text-text-muted italic leading-relaxed pt-1">
-                Note: Ensure the exact URL above is registered in your <a href="https://api.deriv.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-brand hover:underline font-bold">Deriv Developer Dashboard</a>.
-              </p>
-
+          <div className="space-y-6">
+            {/* Primary Action: Deriv Sync */}
+            <div className="space-y-3">
+               <button 
+                onClick={() => handleDerivLogin(!isLogin)}
+                disabled={loading}
+                className="w-full relative group flex items-center justify-center gap-4 py-5 bg-brand text-black rounded-2xl transition-all shadow-[0_0_20px_rgba(255,68,0,0.15)] hover:shadow-[0_0_30px_rgba(255,68,0,0.25)] hover:-translate-y-0.5 active:translate-y-0"
+              >
+                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
+                <Zap className="w-5 h-5 fill-black" />
+                <span className="text-xs font-black uppercase tracking-[0.2em]">Sync with Deriv Node</span>
+                {loading && (
+                   <div className="absolute right-6 w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                )}
+              </button>
+              
               {!showConfig ? (
-                <button 
-                  onClick={() => setShowConfig(true)}
-                  className="w-full text-[9px] font-black text-brand uppercase tracking-tighter hover:underline text-left pt-1"
+                <div className="flex justify-center">
+                  <button 
+                    onClick={() => setShowConfig(true)}
+                    className="text-[9px] font-black text-text-muted hover:text-brand uppercase tracking-tighter transition-colors"
+                  >
+                    Handshake Settings
+                  </button>
+                </div>
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-card/50 border border-border rounded-xl p-4 space-y-3"
                 >
-                  + Troubleshoot & Override Config
+                  <div className="flex justify-between items-center px-1">
+                    <p className="text-[9px] font-black text-brand uppercase">Node Config</p>
+                    <button onClick={() => setShowConfig(false)} className="text-[9px] text-text-muted hover:text-white">✕</button>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-text-muted uppercase">Client ID</label>
+                      <input 
+                        value={customClientId}
+                        onChange={(e) => setCustomClientId(e.target.value)}
+                        className="w-full bg-background border border-border/50 rounded-lg p-2 text-[10px] font-mono text-text-primary focus:border-brand outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-text-muted uppercase">Redirect URI</label>
+                      <input 
+                        value={customRedirectUri}
+                        onChange={(e) => setCustomRedirectUri(e.target.value)}
+                        className="w-full bg-background border border-border/50 rounded-lg p-2 text-[10px] font-mono text-text-primary focus:border-brand outline-none"
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+
+            <div className="relative py-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase font-black tracking-[0.3em]">
+                <span className="bg-background px-3 text-text-muted">Legacy Route</span>
+              </div>
+            </div>
+
+            {/* Email/Password Flow */}
+            <form onSubmit={handleEmailLogin} className="space-y-4">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-text-muted uppercase tracking-widest pl-1">Identifier</label>
+                  <input 
+                    type="text"
+                    placeholder="USERNAME / EMAIL / UID"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    required
+                    className="w-full bg-secondary/20 border border-border focus:border-brand/40 hover:border-border-strong rounded-2xl py-4 px-5 text-xs font-bold text-text-primary outline-none transition-all placeholder:text-text-muted/30"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-text-muted uppercase tracking-widest pl-1">Secret Key</label>
+                  <input 
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="w-full bg-secondary/20 border border-border focus:border-brand/40 hover:border-border-strong rounded-2xl py-4 px-5 text-xs font-bold text-text-primary outline-none transition-all placeholder:text-text-muted/30"
+                  />
+                </div>
+                
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 border border-border hover:border-text-primary bg-transparent text-text-primary rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2"
+                >
+                  {isLogin ? 'Execute Login' : 'Register Node'}
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            </form>
+
+            {/* Manual Token Fallback */}
+            <div className="pt-2">
+              {!showManual ? (
+                <button 
+                  onClick={() => setShowManual(true)}
+                  className="w-full text-center text-[9px] font-black text-text-muted hover:text-brand uppercase tracking-[0.15em] transition-colors"
+                >
+                  Manual API Token Authorization
                 </button>
               ) : (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="space-y-2 pt-2 border-t border-brand/10"
+                  className="space-y-3 pt-2"
                 >
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black uppercase text-text-muted">OAuth Client ID (Alphanumeric)</label>
-                    <input 
-                      value={customClientId}
-                      onChange={(e) => setCustomClientId(e.target.value)}
-                      className="w-full bg-background/50 border border-brand/20 rounded p-1.5 text-[9px] font-mono text-text-primary"
-                    />
+                  <input 
+                    type="password"
+                    placeholder="PASTE AUTHORIZATION CODE"
+                    value={manualToken}
+                    onChange={(e) => setManualToken(e.target.value)}
+                    className="w-full bg-secondary/20 border border-border focus:border-brand/40 rounded-2xl py-3 px-5 text-[10px] font-mono text-text-primary outline-none transition-all"
+                  />
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={handleManualTokenLogin}
+                      className="flex-1 py-3 bg-white/5 border border-white/10 hover:border-white/20 rounded-xl text-[9px] font-black text-white uppercase tracking-widest"
+                    >
+                      Auth Token
+                    </button>
+                    <button 
+                      onClick={() => setShowManual(false)}
+                      className="px-4 py-3 text-[9px] font-black text-text-muted hover:text-white uppercase"
+                    >
+                      Cancel
+                    </button>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black uppercase text-text-muted">Numeric App ID (Required for domain authorization)</label>
-                    <input 
-                      placeholder="e.g. 1089"
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (/^\d*$/.test(val)) {
-                          import('@/services/derivApi').then(({ derivApi }) => {
-                            derivApi.setAppId(val);
-                          });
-                        }
-                      }}
-                      defaultValue={localStorage.getItem('deriv_app_id') || ''}
-                      className="w-full bg-background/50 border border-brand/20 rounded p-1.5 text-[9px] font-mono text-text-primary"
-                    />
-                    <p className="text-[7px] text-text-muted italic">
-                      Generate this at api.deriv.com. This domain ({window.location.hostname}) MUST be whitelisted.
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[8px] font-black uppercase text-text-muted">Override Redirect URI</label>
-                      <button 
-                        onClick={() => setCustomRedirectUri(`${window.location.origin}/callback`)}
-                        className="text-[7px] text-brand hover:underline font-bold"
-                      >
-                        Reset to Origin
-                      </button>
-                    </div>
-                    <input 
-                      value={customRedirectUri}
-                      onChange={(e) => setCustomRedirectUri(e.target.value)}
-                      className="w-full bg-background/50 border border-brand/20 rounded p-1.5 text-[9px] font-mono text-text-primary"
-                    />
-                  </div>
-                  <button 
-                    onClick={() => setShowConfig(false)}
-                    className="text-[8px] font-bold text-text-muted hover:text-brand uppercase"
-                  >
-                    Close Overrides
-                  </button>
                 </motion.div>
               )}
             </div>
           </div>
 
-          <div className="space-y-6 pt-4">
-            <form onSubmit={handleEmailLogin} className="space-y-4">
-              <div className="space-y-4">
-                <div className="relative">
-                  <input 
-                    type="text"
-                    placeholder="USERNAME / EMAIL / PHONE"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    required
-                    className="w-full bg-secondary/30 border border-border focus:border-brand rounded-2xl py-4 px-5 text-xs font-bold text-text-primary outline-none transition-all placeholder:text-text-muted/50"
-                  />
-                </div>
-                <div className="relative">
-                  <input 
-                    type="password"
-                    placeholder="PASSWORD"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="w-full bg-secondary/30 border border-border focus:border-brand rounded-2xl py-4 px-5 text-xs font-bold text-text-primary outline-none transition-all placeholder:text-text-muted/50"
-                  />
-                </div>
-                <button 
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-4 bg-brand text-background rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:opacity-90 disabled:opacity-50 transition-all shadow-lg shadow-brand/20 flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <div className="w-4 h-4 border-2 border-background/30 border-t-background rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span>Initialize Access</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border"></div>
-              </div>
-              <div className="relative flex justify-center text-[9px] uppercase font-black tracking-[0.3em]">
-                <span className="bg-background px-3 text-text-muted">Or cloud handshake</span>
-              </div>
-            </div>
-
-            <button 
-              type="button"
-              onClick={() => handleDerivLogin(!isLogin)}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-4 py-4 border border-brand/30 bg-brand/5 hover:bg-brand/10 rounded-2xl transition-all text-[11px] font-black text-brand uppercase tracking-[0.2em] italic group relative overflow-hidden"
+          {/* Footer */}
+          <div className="mt-12 pt-6 border-t border-border flex flex-col items-center gap-4">
+             <button 
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-[10px] font-black text-text-muted hover:text-brand uppercase tracking-widest transition-colors"
             >
-              <Zap className="w-4 h-4 fill-brand" />
-              <span>Sync with Deriv Cloud</span>
+              {isLogin ? "Need a terminal node?" : "Already synchronized?"}{' '}
+              <span className="text-brand ml-1">
+                {isLogin ? 'Create Account' : 'Sign In Instead'}
+              </span>
             </button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border"></div>
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest">
-                <span className="bg-background px-3 text-text-muted">Or sync via API Token</span>
-              </div>
-            </div>
-
-            {!showManual ? (
-              <button 
-                onClick={() => setShowManual(true)}
-                className="w-full py-4 border border-border hover:border-brand/40 rounded-2xl text-[10px] font-black text-text-muted hover:text-brand uppercase tracking-widest transition-all"
-              >
-                Enter API Token Manually
-              </button>
-            ) : (
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-3"
-              >
-                <div className="relative">
-                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                  <input 
-                    type="password"
-                    placeholder="PASTE DERIV API TOKEN"
-                    value={manualToken}
-                    onChange={(e) => setManualToken(e.target.value)}
-                    className="w-full bg-secondary/30 border border-border focus:border-brand rounded-2xl py-4 pl-12 pr-4 text-xs font-mono text-text-primary outline-none transition-all"
-                  />
-                </div>
-                <button 
-                  onClick={handleManualTokenLogin}
-                  disabled={!manualToken.trim()}
-                  className="w-full py-4 bg-brand text-background rounded-2xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 disabled:opacity-50 transition-all"
-                >
-                  Verify $ Authorized Session
-                </button>
-                <button 
-                  onClick={() => setShowManual(false)}
-                  className="w-full text-[9px] font-bold text-text-muted hover:text-text-primary uppercase tracking-widest text-center"
-                >
-                  Cancel
-                </button>
-              </motion.div>
-            )}
-
-            <div className="bg-card/50 border border-border p-6 rounded-2xl space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-brand/10 rounded-lg flex items-center justify-center shrink-0">
-                  <Lock className="w-3 h-3 text-brand" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-text-primary uppercase tracking-widest">Secure OAuth 2.0</p>
-                  <p className="text-[9px] font-bold text-text-muted uppercase leading-relaxed">Your password remains private. We only request trading permissions.</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-brand/10 rounded-lg flex items-center justify-center shrink-0">
-                  <Zap className="w-3 h-3 text-brand" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-text-primary uppercase tracking-widest">Instant Sync</p>
-                  <p className="text-[9px] font-bold text-text-muted uppercase leading-relaxed">Real-time balance and trade history synchronization.</p>
-                </div>
-              </div>
+            
+            <div className="flex items-center gap-6 opacity-40">
+               <div className="flex items-center gap-1.5">
+                  <Lock className="w-2.5 h-2.5" />
+                  <span className="text-[8px] font-black uppercase tracking-tighter">AES-256</span>
+               </div>
+               <div className="flex items-center gap-1.5">
+                  <Zap className="w-2.5 h-2.5" />
+                  <span className="text-[8px] font-black uppercase tracking-tighter">Real-time</span>
+               </div>
             </div>
           </div>
-
-          <p className="text-center text-[11px] font-black text-text-muted uppercase tracking-widest pt-8">
-            {isLogin ? "New to the pulse?" : "Authorized member?"}{' '}
-            <button 
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-brand hover:underline"
-            >
-              {isLogin ? 'Sign Up' : 'Sign In'}
-            </button>
-          </p>
         </motion.div>
       </div>
     </div>
