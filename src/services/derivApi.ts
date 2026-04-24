@@ -7,15 +7,20 @@ const DEFAULT_APP_ID = '33433';
 const PUBLIC_WS_URL = 'wss://api.derivws.com/trading/v1/options/ws/public';
 
 const getAppId = () => {
-  // Hub API REST endpoints (Deriv-App-ID header) usually expect the numeric app_id.
+  // Hub API REST endpoints (Deriv-App-ID header) and WebSocket app_id MUST be numeric.
   // OAuth 2.0 uses the client_id (alphanumeric).
-  // We prefer the environment variables.
-  return (
-    localStorage.getItem('deriv_app_id') || 
-    import.meta.env.VITE_DERIV_APP_ID || 
-    import.meta.env.VITE_DERIV_CLIENT_ID || 
-    DEFAULT_APP_ID
-  );
+  const storedAppId = localStorage.getItem('deriv_app_id');
+  if (storedAppId && /^\d+$/.test(storedAppId)) return storedAppId;
+
+  const envAppId = import.meta.env.VITE_DERIV_APP_ID;
+  if (envAppId && /^\d+$/.test(envAppId)) return envAppId;
+
+  // Fallback: extract numeric part from client_id if possible
+  const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || '';
+  const numericMatch = clientId.match(/^(\d+)/);
+  if (numericMatch) return numericMatch[1];
+
+  return DEFAULT_APP_ID;
 };
 
 export type Tick = {
@@ -82,7 +87,13 @@ class DerivService {
   }
 
   private connect(url?: string) {
-    const wsUrl = url || this.otpUrl || PUBLIC_WS_URL;
+    let wsUrl = url || this.otpUrl;
+    
+    if (!wsUrl) {
+      const appId = getAppId();
+      wsUrl = `${PUBLIC_WS_URL}?app_id=${appId}`;
+    }
+
     console.log(`Connecting to Deriv API (${this.isAuthorized ? 'Authenticated' : 'Public'} via ${wsUrl})...`);
     this.setStatus('connecting');
     

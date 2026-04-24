@@ -228,9 +228,9 @@ export function Auth({ onLogin }: AuthProps) {
                   </code>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[9px] text-text-muted font-bold uppercase">Active Client ID:</p>
+                  <p className="text-[9px] text-text-muted font-bold uppercase">Active OAuth Client ID:</p>
                   <code className="text-[9px] text-text-primary bg-background p-1.5 rounded border border-border block font-mono">
-                    {import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn'}
+                    {customClientId}
                   </code>
                 </div>
               </div>
@@ -252,10 +252,24 @@ export function Auth({ onLogin }: AuthProps) {
                   className="space-y-2 pt-2 border-t border-brand/10"
                 >
                   <div className="space-y-1">
-                    <label className="text-[8px] font-black uppercase text-text-muted">Override App ID</label>
+                    <label className="text-[8px] font-black uppercase text-text-muted">OAuth Client ID (Alphanumeric)</label>
                     <input 
                       value={customClientId}
                       onChange={(e) => setCustomClientId(e.target.value)}
+                      className="w-full bg-background/50 border border-brand/20 rounded p-1.5 text-[9px] font-mono text-text-primary"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black uppercase text-text-muted">Numeric App ID (Fallback/WS)</label>
+                    <input 
+                      placeholder="e.g. 33433"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (/^\d*$/.test(val)) {
+                          localStorage.setItem('deriv_app_id', val);
+                        }
+                      }}
+                      defaultValue={localStorage.getItem('deriv_app_id') || ''}
                       className="w-full bg-background/50 border border-brand/20 rounded p-1.5 text-[9px] font-mono text-text-primary"
                     />
                   </div>
