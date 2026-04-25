@@ -26,6 +26,54 @@ interface TradingChartProps {
   onTimeframeChange: (t: string) => void;
 }
 
+// Custom Candle Shape component
+const CandleShape = (props: any) => {
+  const { x, y, width, height, low, high, open, close, isUp } = props;
+  
+  // y is the top of the body, height is the height of the body
+  // low and high are absolute price values
+  // We need to convert low/high to SVG coordinates
+  // But Recharts Bar already provides the coordinate range in some props or we calculate it
+  
+  // For simplicity in a Bar component,Recharts gives us x, y, width, height for the bar itself
+  // If we use 'wick' as the dataKey, [low, high] defines the bar's y and height
+  // If we use 'body' as the dataKey, [open, close] defines the bar's y and height
+  
+  // To render a full candle, we can use the Bar for 'body' and draw the wick internally
+  // Or better: use a specialized Bar shape for the body that also draws the wick.
+  
+  const fill = isUp ? 'var(--color-bullish)' : 'var(--color-bearish-fill)';
+  const stroke = isUp ? 'var(--color-bullish)' : 'var(--color-bearish)';
+  
+  // Calculate wick coordinates relative to x, y, width, height
+  // This is tricky because Bar 'y' and 'height' are for the body OR the wick depending on dataKey
+  // Let's assume this shape is called for the 'body' bar
+  
+  return (
+    <g>
+      {/* Wick (vertical line) */}
+      <line 
+        x1={x + width / 2} 
+        y1={props.wickY1} // We'll pass these in the data
+        x2={x + width / 2} 
+        y2={props.wickY2} 
+        stroke={stroke} 
+        strokeWidth={1} 
+      />
+      {/* Body */}
+      <rect 
+        x={x} 
+        y={y} 
+        width={width} 
+        height={height} 
+        fill={fill} 
+        stroke={stroke}
+        strokeWidth={1}
+      />
+    </g>
+  );
+};
+
 export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChange }: TradingChartProps) {
   const [chartType, setChartType] = useState<'area' | 'candle'>('candle');
   const [showSMA, setShowSMA] = useState(false);
@@ -43,6 +91,31 @@ export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChan
       }
     }
   };
+
+  const { domain } = useMemo(() => {
+    let prices: number[] = [];
+    if (chartType === 'candle' && candles && candles.length > 0) {
+      prices = candles.flatMap(c => [c.high, c.low]);
+    } else if (data && data.length > 0) {
+      prices = data.map(d => d.quote);
+    }
+
+    if (prices.length === 0) {
+      return { domain: [0, 100] };
+    }
+
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const padding = (max - min) * 0.15; // 15% padding
+    
+    if (min === max) {
+      return { domain: [min * 0.99, max * 1.01] };
+    }
+    
+    return {
+      domain: [min - padding, max + padding]
+    };
+  }, [data, candles, chartType]);
 
   const chartData = useMemo(() => {
     const calculateRSI = (prices: number[], period = 14) => {
@@ -91,7 +164,8 @@ export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChan
           high: c.high,
           low: c.low,
           close: c.close,
-          body: [c.open, c.close],
+          // Recharts specific mapping for range bar
+          body: [Math.min(c.open, c.close), Math.max(c.open, c.close)],
           wick: [c.low, c.high],
           isUp: c.close >= c.open,
           sma: sma,
@@ -124,30 +198,6 @@ export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChan
         timestamp: point.epoch
       };
     });
-  }, [data, candles, chartType]);
-
-  const { domain } = useMemo(() => {
-    let prices: number[] = [];
-    if (chartType === 'candle' && candles && candles.length > 0) {
-      prices = candles.flatMap(c => [c.high, c.low]);
-    } else if (data && data.length > 0) {
-      prices = data.map(d => d.quote);
-    }
-
-    if (prices.length === 0) {
-      return { domain: [0, 100] };
-    }
-
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
-    
-    if (min === max) {
-      return { domain: [min * 0.99, max * 1.01] };
-    }
-    
-    return {
-      domain: [min * 0.9995, max * 1.0005]
-    };
   }, [data, candles, chartType]);
 
   const currentPrice = data[data.length - 1]?.quote || (candles && candles[candles.length - 1]?.close) || 0;
@@ -231,7 +281,7 @@ export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChan
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 10, right: 60, left: 0, bottom: 0 }}>
+            <ComposedChart data={chartData} margin={{ top: 10, right: 60, left: 10, bottom: 0 }} barGap="-100%" barCategoryGap="20%">
               <defs>
                 <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--color-chart-line, var(--color-brand))" stopOpacity={0.2}/>
@@ -241,16 +291,16 @@ export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChan
               <CartesianGrid strokeDasharray="2 2" vertical={true} stroke="var(--color-chart-grid, var(--color-border))" strokeOpacity={0.8} />
               <XAxis 
                 dataKey="time" 
-                axisLine={{ stroke: 'var(--color-text-primary)', strokeWidth: 1 }} 
-                tickLine={{ stroke: 'var(--color-text-primary)' }} 
+                axisLine={{ stroke: 'var(--color-text-secondary)', strokeWidth: 1 }} 
+                tickLine={{ stroke: 'var(--color-text-secondary)' }} 
                 tick={{ fill: 'var(--color-text-secondary)', fontSize: 10, fontFamily: 'Inter' }}
                 minTickGap={50}
               />
               <YAxis 
                 orientation="right"
                 domain={domain}
-                axisLine={{ stroke: 'var(--color-text-primary)', strokeWidth: 1 }}
-                tickLine={{ stroke: 'var(--color-text-primary)' }}
+                axisLine={{ stroke: 'var(--color-text-secondary)', strokeWidth: 1 }}
+                tickLine={{ stroke: 'var(--color-text-secondary)' }}
                 tick={{ fill: 'var(--color-text-secondary)', fontSize: 10, fontFamily: 'Roboto Mono' }}
                 mirror={false}
                 width={60}
@@ -273,44 +323,6 @@ export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChan
                   fontFamily: 'Roboto Mono',
                   fontWeight: 'bold',
                   className: "bg-background px-1"
-                }} 
-              />
-
-              {/* Mock TP/SL Lines (MT4 Style) */}
-              <ReferenceLine 
-                y={currentPrice * 1.002} 
-                stroke="#F26624" 
-                strokeDasharray="5 5" 
-                label={{ 
-                  position: 'left', 
-                  value: `#60643043 tp, ${(currentPrice * 0.002 * 10000).toFixed(1)} pips`, 
-                  fill: '#F26624', 
-                  fontSize: 9,
-                  fontFamily: 'Roboto Mono'
-                }} 
-              />
-              <ReferenceLine 
-                y={currentPrice * 0.998} 
-                stroke="#F26624" 
-                strokeDasharray="5 5" 
-                label={{ 
-                  position: 'left', 
-                  value: `#60643043 sl`, 
-                  fill: '#F26624', 
-                  fontSize: 9,
-                  fontFamily: 'Roboto Mono'
-                }} 
-              />
-              <ReferenceLine 
-                y={currentPrice * 1.0005} 
-                stroke="#22C55E" 
-                strokeDasharray="5 5" 
-                label={{ 
-                  position: 'left', 
-                  value: `#60643043 buy 0.20`, 
-                  fill: '#22C55E', 
-                  fontSize: 9,
-                  fontFamily: 'Roboto Mono'
                 }} 
               />
 
@@ -343,7 +355,7 @@ export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChan
                   <Bar 
                     dataKey="body" 
                     isAnimationActive={false}
-                    barSize={6}
+                    barSize={8}
                   >
                     {chartData.map((entry: any, index: number) => (
                       <Cell 

@@ -119,8 +119,9 @@ export default function App() {
       const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
       const storedClientId = sessionStorage.getItem('oauth_client_id');
       
-      const clientId = sessionStorage.getItem('oauth_client_id') || '33433jm6aon9vgTQHB9vn';
-      const redirectUri = sessionStorage.getItem('oauth_redirect_uri') || (typeof window !== 'undefined' ? window.location.origin + '/callback' : 'https://deriv-flow.vercel.app/callback');
+      const clientId = sessionStorage.getItem('oauth_client_id') || import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://deriv-flow.vercel.app';
+      const redirectUri = sessionStorage.getItem('oauth_redirect_uri') || `${origin}/callback`;
 
       if (returnedState && storedState && returnedState !== storedState) {
         throw new Error('Security Breach: OAuth state mismatch detected.');
