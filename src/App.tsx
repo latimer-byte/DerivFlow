@@ -119,8 +119,8 @@ export default function App() {
       const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
       const storedClientId = sessionStorage.getItem('oauth_client_id');
       
-      const clientId = '33433jm6aon9vgTQHB9vn';
-      const redirectUri = 'https://deriv-flow.vercel.app/callback';
+      const clientId = sessionStorage.getItem('oauth_client_id') || '33433jm6aon9vgTQHB9vn';
+      const redirectUri = sessionStorage.getItem('oauth_redirect_uri') || (typeof window !== 'undefined' ? window.location.origin + '/callback' : 'https://deriv-flow.vercel.app/callback');
 
       if (returnedState && storedState && returnedState !== storedState) {
         throw new Error('Security Breach: OAuth state mismatch detected.');
@@ -499,7 +499,7 @@ export default function App() {
   // Environment session initialization (using VITE_DERIV_TOKEN)
   useEffect(() => {
     // Only run if we don't have a user OR if the current user is NOT a deriv user but we have a token
-    const envToken = import.meta.env.VITE_DERIV_TOKEN || (import.meta.env.DEV ? 'p5nK796S38ivS68' : null);
+    const envToken = import.meta.env.VITE_DERIV_TOKEN || (import.meta.env.DEV ? '32XhlOqFjz1VagaEisvh8' : null);
     
     if (!user && envToken) {
       console.log("Deriv: Initializing session via environment token...");

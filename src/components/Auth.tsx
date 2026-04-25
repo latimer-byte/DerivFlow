@@ -90,6 +90,11 @@ export function Auth({ onLogin }: AuthProps) {
       const clientId = customClientId;
       const redirectUri = customRedirectUri;
       
+      console.log(`Deriv OAuth Invitation:`);
+      console.log(`- Client ID: ${clientId}`);
+      console.log(`- Redirect URI: ${redirectUri}`);
+      console.log(`- Note: Ensure this Redirect URI is whitelisted in your Deriv API Dashboard (https://api.deriv.com/app-registration)`);
+      
       // PKCE
       const array = crypto.getRandomValues(new Uint8Array(64));
       const codeVerifier = Array.from(array)
