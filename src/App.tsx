@@ -252,7 +252,9 @@ export default function App() {
       if (error === 'access_denied') {
         friendlyError = 'Access Denied: You cancelled the login handshake.';
       } else if (error === 'invalid_request') {
-        friendlyError = 'Invalid Request: The Redirect URI or Client ID does not match your Deriv Dashboard settings. Please verify whitelisting at api.deriv.com.';
+        friendlyError = 'Invalid Request: The Redirect URI or Client ID does not match your Deriv Dashboard settings exactly. Ensure "https://" is present and no trailing slashes if not registered with one.';
+      } else if (error.includes('405')) {
+        friendlyError = `Handshake Method Rejected (405): Deriv's security server rejected the token exchange. This usually means your App ID is not setup for "OAuth 2.0" or you are using the numeric App ID where the Alphanumeric Client ID is required.`;
       }
       
       setAuthError(friendlyError);

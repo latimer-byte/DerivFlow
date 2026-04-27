@@ -44,8 +44,8 @@ async function startServer() {
     }
 
     try {
-      // Try the /oauth2/token endpoint
       console.log(`Exchanging code for token with client_id: ${client_id}`);
+      console.log(`Redirect URI in use: ${redirect_uri}`);
       
       const params = new URLSearchParams({
         grant_type: "authorization_code",
@@ -55,14 +55,39 @@ async function startServer() {
         redirect_uri,
       });
 
-      const response = await fetch("https://auth.deriv.com/oauth2/token", {
+      // Deriv OAuth2 Token Endpoint
+      // Some versions of the endpoint (Ory Hydra) are strict about trailing slashes or headers
+      const tokenUrl = "https://auth.deriv.com/oauth2/token";
+      
+      let response = await fetch(tokenUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json"
+          "Accept": "application/json",
+          "User-Agent": "Deriv-Terminal-App/1.0.0",
+          "Origin": "https://auth.deriv.com",
+          "Referer": "https://auth.deriv.com/oauth2/auth"
         },
         body: params.toString(),
       });
+
+      // Trailing slash fallback (Common in Ory/Hydra setups)
+      if (response.status === 405) {
+        console.log(`405 detected on ${tokenUrl}. Attempting fallback with trailing slash...`);
+        const fallbackResponse = await fetch(tokenUrl + "/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "User-Agent": "Deriv-Terminal-App/1.0.0"
+          },
+          body: params.toString(),
+        });
+        
+        if (fallbackResponse.ok || fallbackResponse.status !== 405) {
+          response = fallbackResponse;
+        }
+      }
 
       let responseText = await response.text();
       let data: any;
@@ -77,15 +102,15 @@ async function startServer() {
       if (!response.ok) {
         console.error(`Deriv Token Exchange Failed (Status ${response.status}):`, data);
         
-        // If 405, maybe it's the wrong endpoint, but Ory usually returns 405 for certain config issues.
-        // Let's return a clearer error to the user
         if (response.status === 405) {
           return res.status(405).json({ 
-            error: "The authentication terminal rejected the handshake method (405). This usually means the App ID is not configured for Authorization Code flow or the redirect URI doesn't match the dashboard exactly." 
+            error: "Method Not Allowed (405): The terminal rejected the handshake. Common causes: \n1. Your App ID is not registered for the 'Authorization Code' flow.\n2. The Redirect URI mismatches your dashboard EXACTLY (check slashes/https).\n3. You are using the numeric App ID instead of the Alphanumeric Client ID." 
           });
         }
         
-        return res.status(response.status).json(data);
+        // Handle OAuth specific errors from data
+        const errorMessage = data.error_description || data.error || `Server Error: ${response.status}`;
+        return res.status(response.status).json({ error: errorMessage });
       }
 
       console.log("Token exchange successful!");

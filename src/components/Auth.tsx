@@ -356,17 +356,19 @@ Connect to Deriv terminal?`;
                   </div>
                   <div className="space-y-2">
                     <div className="space-y-1">
-                      <label className="text-[8px] font-black text-text-muted uppercase">OAuth Client ID</label>
+                      <label className="text-[8px] font-black text-text-muted uppercase">OAuth Client ID (Alphanumeric)</label>
                       <input 
                         value={customClientId}
+                        placeholder="e.g. app12345 or 336J..."
                         onChange={(e) => setCustomClientId(e.target.value)}
                         className="w-full bg-background border border-border/50 rounded-lg p-2 text-[10px] font-mono text-text-primary focus:border-brand outline-none"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[8px] font-black text-text-muted uppercase">Legacy App ID</label>
+                      <label className="text-[8px] font-black text-text-muted uppercase">WebSocket App ID (Numeric)</label>
                       <input 
                         value={customAppId}
+                        placeholder="e.g. 1089"
                         onChange={(e) => {
                           setCustomAppId(e.target.value);
                           if (e.target.value.length > 0) derivApi.setAppId(e.target.value);
