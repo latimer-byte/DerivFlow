@@ -94,7 +94,7 @@ export function Auth({ onLogin }: AuthProps) {
       console.log(`Deriv OAuth Invitation:`);
       console.log(`- Client ID: ${clientId}`);
       console.log(`- Redirect URI: ${redirectUri}`);
-      console.log(`- Note: Ensure this Redirect URI is whitelisted in your Deriv API Dashboard (https://api.deriv.com/app-registration)`);
+      console.log(`- Whitelist required: ${redirectUri}`);
       
       // PKCE
       const array = crypto.getRandomValues(new Uint8Array(64));
@@ -135,26 +135,43 @@ export function Auth({ onLogin }: AuthProps) {
 
       const derivLoginUrl = `${baseUrl}?${params.toString()}`;
       
+      console.log(`Deriv Hub Handshake URL: ${derivLoginUrl}`);
+      
       const width = 600;
       const height = 750;
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
       
-      const popup = window.open(
-        derivLoginUrl, 
-        'DerivLogin', 
-        `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,toolbar=no,menubar=no,scrollbars=yes`
-      );
+      // Inform user about whitelist requirements clearly before opening
+      const whitelistNotice = `CRITICAL: Your Deriv App registration must whitelist this exact Redirect URI:
+${redirectUri}
 
-      if (popup) {
-        const timer = setInterval(() => {
-          if (popup.closed) {
-            clearInterval(timer);
-            setLoading(false);
-          }
-        }, 1000);
+Domain to whitelist:
+${window.location.hostname}
+
+If you see an "invalid_request" error on Deriv, please update your dashboard settings at api.deriv.com/app-registration.
+
+Open login terminal?`;
+
+      if (window.confirm(whitelistNotice)) {
+        const popup = window.open(
+          derivLoginUrl, 
+          'DerivLogin', 
+          `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,toolbar=no,menubar=no,scrollbars=yes`
+        );
+
+        if (popup) {
+          const timer = setInterval(() => {
+            if (popup.closed) {
+              clearInterval(timer);
+              setLoading(false);
+            }
+          }, 1000);
+        } else {
+          alert('Universal Handshake Interrupted: Please enable popups to sync with Deriv Cloud.');
+          setLoading(false);
+        }
       } else {
-        alert('Universal Handshake Interrupted: Please enable popups to sync with Deriv Cloud.');
         setLoading(false);
       }
     } catch (error) {
