@@ -306,7 +306,7 @@ export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChan
                 width={60}
               />
               <Tooltip 
-                content={<CustomTooltip chartType={chartType} />}
+                content={<CustomTooltip chartType={chartType} showSMA={showSMA} showRSI={showRSI} />}
                 cursor={{ stroke: 'var(--color-text-muted)', strokeDasharray: '3 3' }}
               />
               
@@ -441,30 +441,45 @@ function ChartTypeBtn({ active, onClick, label }: any) {
   );
 }
 
-const CustomTooltip = ({ active, payload, label, chartType }: any) => {
+const CustomTooltip = ({ active, payload, label, chartType, showSMA, showRSI }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
+    const hasOHLC = data.open !== undefined && data.close !== undefined;
     
-    if (chartType === 'candle') {
-      return (
-        <div className="bg-card border border-border p-3 rounded shadow-2xl min-w-[120px]">
-          <p className="text-[10px] text-text-muted mb-2 font-mono border-b border-border pb-1">{label}</p>
-          <div className="space-y-1">
-            <TooltipRow label="O" value={data.open} />
-            <TooltipRow label="H" value={data.high} />
-            <TooltipRow label="L" value={data.low} />
-            <TooltipRow label="C" value={data.close} color={data.isUp ? 'text-bullish' : 'text-bearish'} />
-          </div>
-        </div>
-      );
-    }
-
     return (
-      <div className="bg-card border border-border p-2 rounded shadow-2xl">
-        <p className="text-[10px] text-text-muted mb-1 font-mono">{label}</p>
-        <p className="text-xs font-bold font-mono text-text-primary">
-          PRICE: <span className="text-brand">${payload[0].value.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-        </p>
+      <div className="bg-card/95 backdrop-blur-md border border-white/10 p-3 rounded-lg shadow-2xl min-w-[150px] pointer-events-none z-50">
+        <div className="flex items-center justify-between gap-4 mb-2 border-b border-white/5 pb-1.5">
+          <span className="text-[10px] font-black text-brand uppercase tracking-widest">{label}</span>
+          {data.timestamp && (
+            <span className="text-[8px] font-mono text-text-muted">{format(new Date(data.timestamp * 1000), 'HH:mm:ss')}</span>
+          )}
+        </div>
+        
+        <div className="space-y-1.5">
+          {/* Main Data Section */}
+          {!hasOHLC ? (
+            <TooltipRow label="PRICE" value={data.price} color="text-brand" />
+          ) : (
+            <div className="space-y-1">
+              <TooltipRow label="OPEN" value={data.open} />
+              <TooltipRow label="HIGH" value={data.high} />
+              <TooltipRow label="LOW" value={data.low} />
+              <TooltipRow label="CLOSE" value={data.close} color={data.isUp ? 'text-bullish' : 'text-bearish'} />
+            </div>
+          )}
+
+          {/* Indicators Section */}
+          {(showSMA || showRSI) && (
+            <div className="pt-2 border-t border-white/5 space-y-1.5">
+              {showSMA && data.sma !== undefined && data.sma !== null && (
+                <TooltipRow label="SMA(10)" value={data.sma} color="text-sky-400" />
+              )}
+              {showRSI && data.rsi !== undefined && data.rsi !== null && (
+                <TooltipRow label="RSI(14)" value={data.rsi} color="text-amber-400" />
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -472,11 +487,15 @@ const CustomTooltip = ({ active, payload, label, chartType }: any) => {
 };
 
 function TooltipRow({ label, value, color = 'text-text-primary' }: any) {
+  if (value === undefined || value === null) return null;
+  
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-[10px] font-bold text-text-muted">{label}</span>
+    <div className="flex items-center justify-between gap-6">
+      <span className="text-[10px] font-bold text-text-muted uppercase tracking-tight">{label}</span>
       <span className={cn("text-[10px] font-mono font-bold", color)}>
-        {value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        {typeof value === 'number' 
+          ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+          : value}
       </span>
     </div>
   );
