@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Zap, Lock, ArrowRight, Key } from 'lucide-react';
+import { Zap, Lock, ArrowRight, Key, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { derivApi } from '@/services/derivApi';
@@ -15,10 +15,14 @@ export function Auth({ onLogin }: AuthProps) {
   const [showManual, setShowManual] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [customClientId, setCustomClientId] = useState('336Jcj20DczhY7sKLv2Ri');
-  const [customRedirectUri, setCustomRedirectUri] = useState(() => {
+  const [customAppId, setCustomAppId] = useState('336Jcj20DczhY7sKLv2Ri');
+  const [expectedRedirectUri] = useState(() => {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://deriv-flow.vercel.app';
     return `${origin}/callback`;
   });
+  const [customRedirectUri, setCustomRedirectUri] = useState(expectedRedirectUri);
+  const [registeredRedirectUri, setRegisteredRedirectUri] = useState('');
+  const [showDiagnostic, setShowDiagnostic] = useState(false);
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -89,69 +93,75 @@ export function Auth({ onLogin }: AuthProps) {
     setLoading(true);
     try {
       const clientId = customClientId;
+      const appId = customAppId;
       const redirectUri = customRedirectUri;
       
-      console.log(`Deriv OAuth Invitation:`);
+      console.log(`Deriv OAuth Handshake Initiation:`);
       console.log(`- Client ID: ${clientId}`);
+      console.log(`- Legacy App ID: ${appId}`);
       console.log(`- Redirect URI: ${redirectUri}`);
-      console.log(`- Whitelist required: ${redirectUri}`);
       
-      // PKCE
+      // 1. Generate a random code_verifier
       const array = crypto.getRandomValues(new Uint8Array(64));
       const codeVerifier = Array.from(array)
         .map(v => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'[v % 66])
         .join('');
 
+      // 2. Derive the code_challenge
       const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier));
       const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=+$/, '');
 
+      // 3. Generate a random state for CSRF protection
       const state = crypto.getRandomValues(new Uint8Array(16))
         .reduce((s, b) => s + b.toString(16).padStart(2, '0'), '');
 
+      // 4. Store code_verifier and state before redirecting
       sessionStorage.setItem('pkce_code_verifier', codeVerifier);
       sessionStorage.setItem('oauth_state', state);
-      
-      // Use the full client ID for OAuth, don't truncate alphanumeric ones
-      const oauthClientId = clientId; 
-      sessionStorage.setItem('oauth_client_id', oauthClientId);
+      sessionStorage.setItem('oauth_client_id', clientId);
       sessionStorage.setItem('oauth_redirect_uri', redirectUri);
 
       const baseUrl = "https://auth.deriv.com/oauth2/auth";
       const params = new URLSearchParams({
         response_type: 'code',
-        client_id: oauthClientId,
+        client_id: clientId,
         redirect_uri: redirectUri,
         scope: 'trade account_manage',
         state: state,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
-        app_id: oauthClientId // In some cases app_id is also alphanumeric in newer Deriv API
+        app_id: appId // Legacy App ID mapping
       });
 
       if (forceSignup) params.append('prompt', 'registration');
 
       const derivLoginUrl = `${baseUrl}?${params.toString()}`;
-      
-      console.log(`Deriv Hub Handshake URL: ${derivLoginUrl}`);
+      console.log(`Deriv OAuth URL: ${derivLoginUrl}`);
       
       const width = 600;
       const height = 750;
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
       
-      // Inform user about whitelist requirements clearly before opening
-      const whitelistNotice = `CRITICAL: Your Deriv App registration must whitelist this exact Redirect URI:
+      const whitelistNotice = `Handshake Security Required.
+      
+Ensure this Redirect URI is whitelisted in your Deriv API Dashboard (https://api.deriv.com/app-registration):
 ${redirectUri}
 
-Domain to whitelist:
-${window.location.hostname}
+Client ID: ${clientId}
+Legacy App ID: ${appId}
 
-If you see an "invalid_request" error on Deriv, please update your dashboard settings at api.deriv.com/app-registration.
+${registeredRedirectUri && registeredRedirectUri !== redirectUri ? 
+  `CRITICAL MISMATCH DETECTED: 
+Your dashboard registered URI "${registeredRedirectUri}" does NOT match the terminal URI "${redirectUri}". 
+This WILL result in an "invalid_request" error on Deriv.` : 
+  `If you see an "invalid_request" error on Deriv, please verify your whitelisted domains exactly match the URL above.`
+}
 
-Open login terminal?`;
+Connect to Deriv terminal?`;
 
       if (window.confirm(whitelistNotice)) {
         const popup = window.open(
@@ -168,14 +178,14 @@ Open login terminal?`;
             }
           }, 1000);
         } else {
-          alert('Universal Handshake Interrupted: Please enable popups to sync with Deriv Cloud.');
+          alert('Popup Terminated: Handshake could not be established.');
           setLoading(false);
         }
       } else {
         setLoading(false);
       }
     } catch (error) {
-      console.error('Deriv OAuth initiation failed:', error);
+      console.error('Handshake initiation failed:', error);
       setLoading(false);
     }
   };
@@ -338,25 +348,89 @@ Open login terminal?`;
                   </div>
                   <div className="space-y-2">
                     <div className="space-y-1">
-                      <label className="text-[8px] font-black text-text-muted uppercase">Client ID</label>
+                      <label className="text-[8px] font-black text-text-muted uppercase">OAuth Client ID</label>
                       <input 
                         value={customClientId}
+                        onChange={(e) => setCustomClientId(e.target.value)}
+                        className="w-full bg-background border border-border/50 rounded-lg p-2 text-[10px] font-mono text-text-primary focus:border-brand outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-text-muted uppercase">Legacy App ID</label>
+                      <input 
+                        value={customAppId}
                         onChange={(e) => {
-                          setCustomClientId(e.target.value);
-                          const numericAppId = e.target.value.match(/^(\d+)/)?.[1];
-                          if (numericAppId) derivApi.setAppId(numericAppId);
+                          setCustomAppId(e.target.value);
+                          if (e.target.value.length > 0) derivApi.setAppId(e.target.value);
                         }}
                         className="w-full bg-background border border-border/50 rounded-lg p-2 text-[10px] font-mono text-text-primary focus:border-brand outline-none"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[8px] font-black text-text-muted uppercase">Redirect URI</label>
+                      <label className="text-[8px] font-black text-text-muted uppercase tracking-tighter flex justify-between">
+                        Redirect URI (Required)
+                        {customRedirectUri !== expectedRedirectUri && (
+                          <span className="text-rose-500 lowercase font-normal italic">not standard</span>
+                        )}
+                      </label>
                       <input 
                         value={customRedirectUri}
                         onChange={(e) => setCustomRedirectUri(e.target.value)}
-                        className="w-full bg-background border border-border/50 rounded-lg p-2 text-[10px] font-mono text-text-primary focus:border-brand outline-none"
+                        className={cn(
+                          "w-full bg-background border rounded-lg p-2 text-[10px] font-mono outline-none transition-all",
+                          customRedirectUri !== expectedRedirectUri ? "border-rose-500/50 text-rose-500 focus:border-rose-500" : "border-border/50 text-text-primary focus:border-brand"
+                        )}
                       />
                     </div>
+
+                    <div className="pt-2">
+                       <button 
+                        onClick={() => setShowDiagnostic(!showDiagnostic)}
+                        className="w-full text-center text-[7px] font-black text-text-muted hover:text-brand uppercase"
+                      >
+                        {showDiagnostic ? 'Hide Validation Terminal' : 'Run Redirect Validator'}
+                      </button>
+                    </div>
+
+                    {showDiagnostic && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-2"
+                      >
+                        <div className="space-y-1">
+                          <label className="text-[7px] font-black text-white/40 uppercase">Your Dashboard Registered URI</label>
+                          <input 
+                            placeholder="PASTE FROM DERIV DASHBOARD"
+                            value={registeredRedirectUri}
+                            onChange={(e) => setRegisteredRedirectUri(e.target.value)}
+                            className="w-full bg-transparent border-b border-white/10 p-1 text-[9px] font-mono text-brand focus:border-brand outline-none"
+                          />
+                        </div>
+                        
+                        {registeredRedirectUri && (
+                          <div className={cn(
+                            "p-2 rounded-lg text-[8px] font-bold flex items-center gap-2",
+                            registeredRedirectUri === customRedirectUri ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500"
+                          )}>
+                            {registeredRedirectUri === customRedirectUri ? (
+                              <>
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>URI ALIGNMENT VERIFIED</span>
+                              </>
+                            ) : (
+                              <>
+                                <Zap className="w-3 h-3" />
+                                <span>URI MISMATCH: Handshake will fail</span>
+                              </>
+                            )}
+                          </div>
+                        )}
+                        <p className="text-[7px] leading-relaxed text-text-muted uppercase font-medium">
+                          Note: Deriv requires an absolute match including trailing slashes and protocol (https://).
+                        </p>
+                      </motion.div>
+                    )}
                   </div>
                 </motion.div>
               )}

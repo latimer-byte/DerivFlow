@@ -247,7 +247,15 @@ export default function App() {
         window.close();
         return;
       }
-      setAuthError(error === 'access_denied' ? 'Access Denied: You cancelled the login.' : error);
+      
+      let friendlyError = error;
+      if (error === 'access_denied') {
+        friendlyError = 'Access Denied: You cancelled the login handshake.';
+      } else if (error === 'invalid_request') {
+        friendlyError = 'Invalid Request: The Redirect URI or Client ID does not match your Deriv Dashboard settings. Please verify whitelisting at api.deriv.com.';
+      }
+      
+      setAuthError(friendlyError);
     } else if (token1) {
       // Legacy or Token-direct redirect
       console.log('Deriv Token detected in URL (Legacy/Direct Flow)');

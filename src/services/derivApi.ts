@@ -9,17 +9,17 @@ const PUBLIC_WS_URL = 'wss://api.derivws.com/trading/v1/options/ws/public';
 
 const getAppId = () => {
   const storedAppId = localStorage.getItem('deriv_app_id');
-  if (storedAppId && storedAppId.length > 3) {
+  if (storedAppId && storedAppId.length > 3 && storedAppId !== '1089') {
     return storedAppId;
   }
 
   const envAppId = import.meta.env.VITE_DERIV_APP_ID;
-  if (envAppId && envAppId.length > 3) {
+  if (envAppId && envAppId.length > 3 && envAppId !== '1089') {
     return envAppId;
   }
 
   const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || DEFAULT_CLIENT_ID;
-  return clientId;
+  return clientId === '1089' ? DEFAULT_APP_ID : clientId;
 };
 
 export type Tick = {
@@ -419,28 +419,43 @@ class DerivService {
     const appId = getAppId();
     const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'unknown';
     
+    // Alphanumeric detection - WebSocket API usually requires a numeric ID.
+    // Client IDs (alphanumeric) are strictly for OAuth 2.0.
+    const isAlphanumericId = /[a-zA-Z]/.test(appId);
+    
     const listener = (data: any) => {
       if (data.req_id === reqId) {
         this.off(`req_${reqId}`, listener);
         if (data.error) {
           const errMsg = data.error.message;
-          if (errMsg.includes('Sorry, an error occurred') || data.error.code === 'InvalidAppID') {
+          const isSecurityError = errMsg.includes('Sorry, an error occurred') || 
+                                 data.error.code === 'InvalidAppID' ||
+                                 data.error.code === 'AppIdInvalid';
+
+          if (isSecurityError) {
             console.error(`Deriv Security Reject: App ID ${appId} not authorized for domain ${currentDomain}.`);
             
-            reject(new Error(`Deriv Access Denied: The App ID (${appId}) is not registered or whitelisted for this domain (${currentDomain}). 
+            let descriptiveError = `Deriv Access Denied: The App ID (${appId}) is not registered or whitelisted for this domain (${currentDomain}).`;
+            
+            if (isAlphanumericId) {
+              descriptiveError += `\n\nDETECTION: It appears you are using an Alphanumeric Client ID ("${appId}") as an App ID. 
+Deriv WebSocket API requires a NUMERIC App ID. Alphanumeric IDs are strictly for the "Sync with Deriv Node" (OAuth) flow. 
 
-Instructions:
+Please use a numeric App ID from your Deriv Dashboard or use the primary Login button.`;
+            } else {
+              descriptiveError += `\n\nInstructions:
 1. Go to https://api.deriv.com/app-registration
 2. Ensure your App ID whitelists "${currentDomain}".
 3. Add "${currentDomain}" and "${currentDomain}/callback" to the whitelisted domains.
-4. Verify your App ID: ${appId}`));
+4. Verify your App ID: ${appId}`;
+            }
+            
+            reject(new Error(descriptiveError));
             return;
-          }
- else {
+          } else {
             reject(new Error(errMsg));
           }
-        }
- else {
+        } else {
           this.isAuthorized = true;
           this.setStatus('authorized');
           console.log(`Deriv: WebSocket Authorized (App ID: ${appId})`);

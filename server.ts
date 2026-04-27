@@ -105,8 +105,8 @@ async function startServer() {
 
     try {
       console.log(`Fetching Deriv accounts for App ID: ${appId}`);
-      // Hub API typically sits on hub.deriv.com for modern options trading
-      const response = await fetch("https://hub.deriv.com/api/v1/trading/options/accounts", {
+      // Modern Options Hub API endpoint
+      const response = await fetch("https://api.derivws.com/trading/v1/options/accounts", {
         headers: {
           "Authorization": token,
           "Deriv-App-ID": appId.toString()
@@ -120,12 +120,12 @@ async function startServer() {
         data = await response.json();
       } else {
         const text = await response.text();
-        console.warn("Deriv Hub returned non-JSON response:", text);
+        console.warn("Deriv API returned non-JSON response:", text);
         data = { error: { message: text || "Invalid response from Deriv" } };
       }
       
       if (!response.ok) {
-        console.error("Deriv Hub Accounts Fetch Failed:", {
+        console.error("Deriv Options Accounts Fetch Failed:", {
           status: response.status,
           error: data
         });
@@ -148,7 +148,8 @@ async function startServer() {
 
     try {
       console.log(`Requesting OTP for Account: ${accountId} using App ID: ${appId}`);
-      const response = await fetch(`https://hub.deriv.com/api/v1/trading/options/accounts/${accountId}/otp`, {
+      // Modern Options Hub API OTP endpoint
+      const response = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
         method: "POST",
         headers: {
           "Authorization": token,
@@ -163,12 +164,12 @@ async function startServer() {
         data = await response.json();
       } else {
         const text = await response.text();
-        console.warn("Deriv Hub (OTP) returned non-JSON response:", text);
+        console.warn("Deriv API (OTP) returned non-JSON response:", text);
         data = { error: { message: text || "Invalid response from Deriv" } };
       }
       
       if (!response.ok) {
-        console.error("Deriv Hub OTP Request Failed:", {
+        console.error("Deriv Options OTP Request Failed:", {
           status: response.status,
           error: data
         });

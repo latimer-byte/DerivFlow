@@ -208,12 +208,16 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
                     <code className="text-[10px] font-mono text-brand break-all flex-1">
                       {window.location.origin}/callback
                     </code>
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-[8px] font-black text-emerald-500 uppercase">Live Path</span>
+                    </div>
                     <button 
                       onClick={() => {
                         navigator.clipboard.writeText(`${window.location.origin}/callback`);
                         alert('Redirect URI copied to clipboard!');
                       }}
-                      className="p-1.5 hover:bg-secondary rounded-lg transition-colors"
+                      className="p-1.5 hover:bg-secondary rounded-lg transition-colors ml-2"
                       title="Copy URL"
                     >
                       <RefreshCw className="w-3 h-3 text-text-muted" />
