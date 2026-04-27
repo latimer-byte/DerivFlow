@@ -8,17 +8,13 @@ const DEFAULT_CLIENT_ID = '336Jcj20DczhY7sKLv2Ri';
 const PUBLIC_WS_URL = 'wss://api.derivws.com/trading/v1/options/ws/public';
 
 const getAppId = () => {
-  const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'unknown';
-  
   const storedAppId = localStorage.getItem('deriv_app_id');
-  if (storedAppId && storedAppId !== '1089') { // Avoid using the older default if specifically set
-    console.log(`Deriv: Using stored App ID: ${storedAppId}`);
+  if (storedAppId && storedAppId.length > 3) {
     return storedAppId;
   }
 
   const envAppId = import.meta.env.VITE_DERIV_APP_ID;
-  if (envAppId && (envAppId !== '33433' && envAppId !== '1089')) {
-    console.log(`Deriv: Using environment App ID: ${envAppId}`);
+  if (envAppId && envAppId.length > 3) {
     return envAppId;
   }
 
@@ -413,23 +409,18 @@ class DerivService {
         if (data.error) {
           const errMsg = data.error.message;
           if (errMsg.includes('Sorry, an error occurred') || data.error.code === 'InvalidAppID') {
-            const isDefaultId = appId === DEFAULT_APP_ID;
             console.error(`Deriv Security Reject: App ID ${appId} not authorized for domain ${currentDomain}.`);
             
-            if (isDefaultId && appId !== '1089') {
-              console.warn(`Deriv: Primary App ID ${appId} failed. Attempting ultimate fallback 1089...`);
-              this.setAppId('1089');
-              reject(new Error(`The registered App ID (${appId}) is not authorized for this domain. We've attempted to recalibrate using the universal fallback (1089). Please reload the application.`));
-              return;
-            }
-
             reject(new Error(`Deriv Access Denied: The App ID (${appId}) is not registered or whitelisted for this domain (${currentDomain}). 
 
 Instructions:
 1. Go to https://api.deriv.com/app-registration
 2. Ensure your App ID whitelists "${currentDomain}".
-3. Or update the App ID in Handshake Settings.`));
-          } else {
+3. Add "${currentDomain}" and "${currentDomain}/callback" to the whitelisted domains.
+4. Verify your App ID: ${appId}`));
+            return;
+          }
+ else {
             reject(new Error(errMsg));
           }
         }
