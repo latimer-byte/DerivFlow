@@ -12,7 +12,7 @@ import { Chat } from './components/Chat';
 import { History } from './components/History';
 import { Analytics } from './components/Analytics';
 import { Auth } from './components/Auth';
-import ErrorBoundary from './components/ErrorBoundary';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, onAuthStateChanged, signInAnonymously } from './lib/firebase';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { derivApi, Tick, HistoryPoint, Candle, ConnectionStatus } from './services/derivApi';

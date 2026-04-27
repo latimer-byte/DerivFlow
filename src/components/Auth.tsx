@@ -14,7 +14,7 @@ export function Auth({ onLogin }: AuthProps) {
   const [manualToken, setManualToken] = useState('');
   const [showManual, setShowManual] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [customClientId, setCustomClientId] = useState('1089');
+  const [customClientId, setCustomClientId] = useState('336Jcj20DczhY7sKLv2Ri');
   const [customRedirectUri, setCustomRedirectUri] = useState(() => {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://deriv-flow.vercel.app';
     return `${origin}/callback`;
@@ -114,19 +114,21 @@ export function Auth({ onLogin }: AuthProps) {
       sessionStorage.setItem('pkce_code_verifier', codeVerifier);
       sessionStorage.setItem('oauth_state', state);
       
-      const numericAppId = clientId.match(/^(\d+)/)?.[1] || clientId;
-      sessionStorage.setItem('oauth_client_id', numericAppId);
+      // Use the full client ID for OAuth, don't truncate alphanumeric ones
+      const oauthClientId = clientId; 
+      sessionStorage.setItem('oauth_client_id', oauthClientId);
       sessionStorage.setItem('oauth_redirect_uri', redirectUri);
 
       const baseUrl = "https://auth.deriv.com/oauth2/auth";
       const params = new URLSearchParams({
         response_type: 'code',
-        client_id: numericAppId,
+        client_id: oauthClientId,
         redirect_uri: redirectUri,
-        scope: 'read trade',
+        scope: 'trade account_manage',
         state: state,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
+        app_id: oauthClientId // In some cases app_id is also alphanumeric in newer Deriv API
       });
 
       if (forceSignup) params.append('prompt', 'registration');

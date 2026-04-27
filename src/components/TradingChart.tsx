@@ -281,7 +281,7 @@ export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChan
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 10, right: 60, left: 10, bottom: 0 }} barGap="-100%" barCategoryGap="20%">
+            <ComposedChart data={chartData as any[]} margin={{ top: 10, right: 60, left: 10, bottom: 0 }} barGap="-100%" barCategoryGap="20%">
               <defs>
                 <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--color-chart-line, var(--color-brand))" stopOpacity={0.2}/>
@@ -396,7 +396,7 @@ export function TradingChart({ data, candles, symbol, timeframe, onTimeframeChan
               </div>
             </div>
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 5, right: 60, left: 0, bottom: 0 }}>
+              <ComposedChart data={chartData as any[]} margin={{ top: 5, right: 60, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="2 2" vertical={true} stroke="var(--color-border)" strokeOpacity={0.3} />
                 <XAxis dataKey="time" hide />
                 <YAxis 
