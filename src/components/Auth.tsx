@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Zap, Lock, ArrowRight, Key } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { derivApi } from '@/services/derivApi';
 
 interface AuthProps {
   onLogin: (user: any) => void;
@@ -13,7 +14,7 @@ export function Auth({ onLogin }: AuthProps) {
   const [manualToken, setManualToken] = useState('');
   const [showManual, setShowManual] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [customClientId, setCustomClientId] = useState('33433jm6aon9vgTQHB9vn');
+  const [customClientId, setCustomClientId] = useState('1089');
   const [customRedirectUri, setCustomRedirectUri] = useState(() => {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://deriv-flow.vercel.app';
     return `${origin}/callback`;
@@ -112,24 +113,21 @@ export function Auth({ onLogin }: AuthProps) {
 
       sessionStorage.setItem('pkce_code_verifier', codeVerifier);
       sessionStorage.setItem('oauth_state', state);
+      
+      const numericAppId = clientId.match(/^(\d+)/)?.[1] || clientId;
+      sessionStorage.setItem('oauth_client_id', numericAppId);
       sessionStorage.setItem('oauth_redirect_uri', redirectUri);
-      sessionStorage.setItem('oauth_client_id', clientId);
 
       const baseUrl = "https://auth.deriv.com/oauth2/auth";
       const params = new URLSearchParams({
         response_type: 'code',
-        client_id: clientId,
+        client_id: numericAppId,
         redirect_uri: redirectUri,
         scope: 'read trade',
         state: state,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
       });
-
-      const numericAppId = clientId.match(/^(\d+)/)?.[1];
-      if (numericAppId) {
-        params.append('app_id', numericAppId);
-      }
 
       if (forceSignup) params.append('prompt', 'registration');
 
@@ -324,7 +322,11 @@ export function Auth({ onLogin }: AuthProps) {
                       <label className="text-[8px] font-black text-text-muted uppercase">Client ID</label>
                       <input 
                         value={customClientId}
-                        onChange={(e) => setCustomClientId(e.target.value)}
+                        onChange={(e) => {
+                          setCustomClientId(e.target.value);
+                          const numericAppId = e.target.value.match(/^(\d+)/)?.[1];
+                          if (numericAppId) derivApi.setAppId(numericAppId);
+                        }}
                         className="w-full bg-background border border-border/50 rounded-lg p-2 text-[10px] font-mono text-text-primary focus:border-brand outline-none"
                       />
                     </div>

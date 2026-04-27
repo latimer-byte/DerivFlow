@@ -3,8 +3,8 @@
  * Aligned with https://developers.deriv.com/llms.txt
  */
 
-const DEFAULT_APP_ID = '33433';
-const DEFAULT_CLIENT_ID = '33433jm6aon9vgTQHB9vn';
+const DEFAULT_APP_ID = '1089';
+const DEFAULT_CLIENT_ID = '1089jm6aon9vgTQHB9vn';
 const PUBLIC_WS_URL = 'wss://api.derivws.com/trading/v1/options/ws/public';
 
 const getAppId = () => {
@@ -412,7 +412,13 @@ class DerivService {
           const errMsg = data.error.message;
           if (errMsg.includes('Sorry, an error occurred') || data.error.code === 'InvalidAppID') {
             console.error(`Deriv Security Reject: App ID ${appId} not authorized for domain ${currentDomain}.`);
-            reject(new Error(`Deriv Access Denied: The App ID (${appId}) is not registered or not permitted for this domain (${currentDomain}). Please register your App ID at api.deriv.com and add this domain to the whitelist.`));
+            reject(new Error(`Deriv Access Denied: The App ID (${appId}) is not registered or not permitted for this domain (${currentDomain}). 
+
+Fix Instructions:
+1. Go to https://api.deriv.com/app-registration
+2. Login and register a new App ID.
+3. Add "${currentDomain}" and "${currentDomain}/callback" to the whitelisted domains.
+4. Update the App ID in Handshake Settings or .env as VITE_DERIV_APP_ID.`));
           } else {
             reject(new Error(errMsg));
           }
@@ -664,6 +670,43 @@ class DerivService {
         req_id: reqId,
       });
     });
+  }
+
+  public async getBalance() {
+    return new Promise<number>((resolve, reject) => {
+      const reqId = ++this.reqIdCounter;
+      const listener = (data: any) => {
+        if (data.req_id === reqId) {
+          this.off(`req_${reqId}`, listener);
+          if (data.error) reject(new Error(data.error.message));
+          else resolve(data.balance.balance);
+        }
+      };
+      this.on(`req_${reqId}`, listener);
+      this.send({ balance: 1, req_id: reqId });
+    });
+  }
+
+  public subscribeBalance(callback: (balance: number) => void) {
+    const balanceHandler = (data: any) => {
+      if (data.msg_type === 'balance' && data.balance) {
+        callback(data.balance.balance);
+      }
+    };
+
+    const reqId = ++this.reqIdCounter;
+    this.send({
+      balance: 1,
+      subscribe: 1,
+      req_id: reqId
+    });
+
+    this.on('balance', balanceHandler);
+
+    return () => {
+      // In Deriv API, there isn't a direct "forget balance" but we can stop listening
+      this.off('balance', balanceHandler);
+    };
   }
 
   public async buyContract(symbol: string, amount: number, type: 'CALL' | 'PUT', duration: number = 60, basis: 'stake' | 'payout' = 'stake') {

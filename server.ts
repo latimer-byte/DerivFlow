@@ -99,7 +99,7 @@ async function startServer() {
   // Proxy route for Deriv Accounts
   app.get("/api/deriv/accounts", async (req, res) => {
     const token = req.headers.authorization;
-    const appId = req.headers['x-deriv-app-id'] || process.env.VITE_DERIV_APP_ID || '33433';
+    const appId = req.headers['x-deriv-app-id'] || process.env.VITE_DERIV_APP_ID || '1089';
 
     if (!token) return res.status(401).json({ error: "Unauthorized" });
 
@@ -141,7 +141,7 @@ async function startServer() {
   app.post("/api/deriv/otp/:accountId", async (req, res) => {
     const { accountId } = req.params;
     const token = req.headers.authorization;
-    const appId = req.headers['x-deriv-app-id'] || process.env.VITE_DERIV_APP_ID || '33433';
+    const appId = req.headers['x-deriv-app-id'] || process.env.VITE_DERIV_APP_ID || '1089';
 
     if (!token) return res.status(401).json({ error: "Unauthorized" });
 

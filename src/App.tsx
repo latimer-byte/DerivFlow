@@ -79,12 +79,14 @@ export default function App() {
 
   // Sync Deriv Auth with App User
   useEffect(() => {
-    return derivApi.onStatusChange((status) => {
+    let balanceUnsubscribe: (() => void) | undefined;
+
+    const statusUnsubscribe = derivApi.onStatusChange((status) => {
       if (status === 'authorized') {
         const accountId = derivApi.getAccountId();
         
         setUser((prevUser: any) => {
-          if (prevUser) return prevUser;
+          if (prevUser && prevUser.authType === 'deriv') return prevUser;
           
           const newUser = {
             name: 'Deriv Trader',
@@ -95,8 +97,18 @@ export default function App() {
           localStorage.setItem('tradepulse_user', JSON.stringify(newUser));
           return newUser;
         });
+
+        // Subscribe to real-time balance if authorized
+        balanceUnsubscribe = derivApi.subscribeBalance((newBalance) => {
+          setBalance(newBalance);
+        });
       }
     });
+
+    return () => {
+      statusUnsubscribe();
+      if (balanceUnsubscribe) balanceUnsubscribe();
+    };
   }, []);
 
   const [authError, setAuthError] = useState<string | null>(null);
@@ -119,7 +131,7 @@ export default function App() {
       const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
       const storedClientId = sessionStorage.getItem('oauth_client_id');
       
-      const clientId = sessionStorage.getItem('oauth_client_id') || import.meta.env.VITE_DERIV_CLIENT_ID || '33433jm6aon9vgTQHB9vn';
+      const clientId = sessionStorage.getItem('oauth_client_id') || import.meta.env.VITE_DERIV_CLIENT_ID || '1089';
       const origin = typeof window !== 'undefined' ? window.location.origin : 'https://deriv-flow.vercel.app';
       const redirectUri = sessionStorage.getItem('oauth_redirect_uri') || `${origin}/callback`;
 
@@ -786,6 +798,19 @@ export default function App() {
 
               setActiveTrades(prev => [newTrade, ...prev]);
               
+              // Record stake deduction in transactions for history tracking
+              StorageService.addTransaction({
+                userId: user.uid,
+                type: 'trade_stake',
+                label: `Stake: ${trade.type.toUpperCase()} ${trade.symbol}`,
+                amount: -trade.amount,
+                displayAmount: `-$${trade.amount.toFixed(2)}`,
+                status: 'COMPLETED',
+                timestamp: Date.now()
+              }, user.uid);
+
+              setTransactions(StorageService.getTransactions(user.uid));
+              
               // Local Persistence
               StorageService.addTrade(newTrade, user.uid);
 
@@ -859,7 +884,7 @@ export default function App() {
       case 'analytics':
         return (
           <div className="p-8 h-full overflow-y-auto">
-            <Analytics tradeHistory={tradeHistory} />
+            <Analytics tradeHistory={tradeHistory} transactions={transactions} />
           </div>
         );
       case 'settings':

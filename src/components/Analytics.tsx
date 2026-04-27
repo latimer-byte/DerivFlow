@@ -6,19 +6,20 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 interface AnalyticsProps {
   tradeHistory: any[];
+  transactions: any[];
 }
 
-export function Analytics({ tradeHistory }: AnalyticsProps) {
+export function Analytics({ tradeHistory, transactions }: AnalyticsProps) {
   const stats = useMemo(() => {
-    if (tradeHistory.length === 0) return null;
+    if (tradeHistory.length === 0 && transactions.length === 0) return null;
 
     const totalTrades = tradeHistory.length;
     const wins = tradeHistory.filter(t => t.result === 'win').length;
-    const losses = totalTrades - wins;
-    const winRate = (wins / totalTrades) * 100;
+    const losses = tradeHistory.filter(t => t.result === 'loss').length;
+    const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
     
     const totalProfit = tradeHistory.reduce((acc, t) => acc + (t.profit || 0), 0);
-    const avgProfit = totalProfit / totalTrades;
+    const avgProfit = totalTrades > 0 ? totalProfit / totalTrades : 0;
     
     const winningTrades = tradeHistory.filter(t => t.result === 'win');
     const losingTrades = tradeHistory.filter(t => t.result === 'loss');
@@ -32,14 +33,26 @@ export function Analytics({ tradeHistory }: AnalyticsProps) {
       
     const profitFactor = avgLoss > 0 ? (avgWin * wins) / (avgLoss * losses) : wins > 0 ? 99 : 0;
 
-    // Calculate cumulative profit data for chart
-    let cumulative = 0;
-    const profitData = [...tradeHistory].reverse().map((t, i) => {
-      cumulative += (t.profit || 0);
+    // Calculate balance history chart using transactions
+    // Sort transactions by timestamp (oldest first for cumulative calculation)
+    const sortedTx = [...transactions].sort((a, b) => a.timestamp - b.timestamp);
+    
+    let currentBalance = 0;
+    const balanceData = sortedTx.map((tx, i) => {
+      let delta = 0;
+      if (tx.type === 'deposit') delta = tx.amount;
+      else if (tx.type === 'withdraw') delta = -tx.amount;
+      else if (tx.type === 'withdrawal') delta = -tx.amount;
+      else if (tx.type === 'trade_win') delta = tx.amount;
+      else if (tx.type === 'trade_loss') delta = tx.amount; // Payout was 50%
+      else if (tx.type === 'trade_stake') delta = tx.amount; // Already negative from App.tsx
+      
+      currentBalance += delta;
+      
       return {
         index: i,
-        profit: cumulative,
-        timestamp: t.timestamp
+        balance: currentBalance,
+        timestamp: tx.timestamp
       };
     });
 
@@ -53,9 +66,9 @@ export function Analytics({ tradeHistory }: AnalyticsProps) {
       avgWin,
       avgLoss,
       profitFactor,
-      profitData
+      balanceData
     };
-  }, [tradeHistory]);
+  }, [tradeHistory, transactions]);
 
   const [isOptimizing, setIsOptimizing] = useState(false);
 
@@ -131,13 +144,13 @@ export function Analytics({ tradeHistory }: AnalyticsProps) {
         <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-6 h-[400px] flex flex-col">
           <h3 className="text-sm font-bold text-text-primary uppercase tracking-widest mb-6 flex items-center gap-2">
             <Activity className="w-4 h-4 text-brand" />
-            Cumulative Profit Curve
+            Account Balance Curve
           </h3>
           <div className="flex-1 min-h-0">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats.profitData}>
+              <AreaChart data={stats.balanceData}>
                 <defs>
-                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--color-brand)" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="var(--color-brand)" stopOpacity={0}/>
                   </linearGradient>
@@ -145,22 +158,25 @@ export function Analytics({ tradeHistory }: AnalyticsProps) {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} opacity={0.3} />
                 <XAxis dataKey="index" hide />
                 <YAxis 
-                  stroke="var(--color-text-muted)" 
-                  fontSize={10} 
-                  tickFormatter={(val) => `$${val}`}
-                  axisLine={false}
-                  tickLine={false}
+                   stroke="var(--color-text-muted)" 
+                   fontSize={10} 
+                   tickFormatter={(val) => `$${val}`}
+                   axisLine={false}
+                   tickLine={false}
+                   domain={['auto', 'auto']}
                 />
                 <Tooltip 
                   contentStyle={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: '8px' }}
                   itemStyle={{ color: 'var(--color-brand)', fontWeight: 'bold' }}
+                  labelStyle={{ display: 'none' }}
+                  formatter={(value: any) => [`$${parseFloat(value).toFixed(2)}`, 'Balance']}
                 />
                 <Area 
                   type="monotone" 
-                  dataKey="profit" 
+                  dataKey="balance" 
                   stroke="var(--color-brand)" 
                   fillOpacity={1} 
-                  fill="url(#colorProfit)" 
+                  fill="url(#colorBalance)" 
                   strokeWidth={3}
                 />
               </AreaChart>
