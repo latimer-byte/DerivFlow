@@ -16,11 +16,19 @@ export function Auth({ onLogin }: AuthProps) {
   const [showConfig, setShowConfig] = useState(false);
   const [customClientId, setCustomClientId] = useState('336Jcj20DczhY7sKLv2Ri');
   const [customAppId, setCustomAppId] = useState('336Jcj20DczhY7sKLv2Ri');
-  const [expectedRedirectUri] = useState(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://deriv-flow.vercel.app';
-    return `${origin}/callback`;
-  });
-  const [customRedirectUri, setCustomRedirectUri] = useState(expectedRedirectUri);
+  const [expectedRedirectUri, setExpectedRedirectUri] = useState('');
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin.replace(/\/$/, ''); // Remove trailing slash if exists
+      const uri = `${origin}/callback`;
+      setExpectedRedirectUri(uri);
+      // Only set custom if it's currently at a default-looking value or blank
+      setCustomRedirectUri(prev => (!prev || prev.includes('deriv-flow.vercel.app')) ? uri : prev);
+    }
+  }, []);
+
+  const [customRedirectUri, setCustomRedirectUri] = useState('');
   const [registeredRedirectUri, setRegisteredRedirectUri] = useState('');
   const [showDiagnostic, setShowDiagnostic] = useState(false);
 
@@ -367,12 +375,19 @@ Connect to Deriv terminal?`;
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[8px] font-black text-text-muted uppercase tracking-tighter flex justify-between">
-                        Redirect URI (Required)
+                      <div className="flex justify-between items-center">
+                        <label className="text-[8px] font-black text-text-muted uppercase tracking-tighter">
+                          Redirect URI (Required)
+                        </label>
                         {customRedirectUri !== expectedRedirectUri && (
-                          <span className="text-rose-500 lowercase font-normal italic">not standard</span>
+                          <button 
+                            onClick={() => setCustomRedirectUri(expectedRedirectUri)}
+                            className="text-[7px] font-bold text-brand hover:underline uppercase"
+                          >
+                            Sync with Browser
+                          </button>
                         )}
-                      </label>
+                      </div>
                       <input 
                         value={customRedirectUri}
                         onChange={(e) => setCustomRedirectUri(e.target.value)}
