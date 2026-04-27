@@ -11,8 +11,8 @@ interface AuthProps {
 export function Auth({ onLogin }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [manualToken, setManualToken] = useState('');
-  const [showManual, setShowManual] = useState(false);
+  const [manualToken, setManualToken] = useState('pat_3920f9cf169fb64360d7d24a0333ff6fa944b4fbb231073097c8bc97be38992c');
+  const [showManual, setShowManual] = useState(true);
   const [showConfig, setShowConfig] = useState(false);
   const [customClientId, setCustomClientId] = useState('336Jcj20DczhY7sKLv2Ri');
   const [customAppId, setCustomAppId] = useState('336Jcj20DczhY7sKLv2Ri');
