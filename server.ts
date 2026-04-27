@@ -10,9 +10,12 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import { DERIV_CONFIG } from "./src/constants";
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  const DEFAULT_APP_ID = DERIV_CONFIG.APP_ID;
 
   app.use(cors());
   app.use(express.json());

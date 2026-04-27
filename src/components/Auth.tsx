@@ -8,14 +8,16 @@ interface AuthProps {
   onLogin: (user: any) => void;
 }
 
+import { DERIV_CONFIG } from '../constants';
+
 export function Auth({ onLogin }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [manualToken, setManualToken] = useState('pat_3920f9cf169fb64360d7d24a0333ff6fa944b4fbb231073097c8bc97be38992c');
+  const [manualToken, setManualToken] = useState(DERIV_CONFIG.DEFAULT_TOKEN);
   const [showManual, setShowManual] = useState(true);
   const [showConfig, setShowConfig] = useState(false);
-  const [customClientId, setCustomClientId] = useState('336Jcj20DczhY7sKLv2Ri');
-  const [customAppId, setCustomAppId] = useState('336Jcj20DczhY7sKLv2Ri');
+  const [customClientId, setCustomClientId] = useState(DERIV_CONFIG.APP_ID);
+  const [customAppId, setCustomAppId] = useState(DERIV_CONFIG.APP_ID);
   const [expectedRedirectUri, setExpectedRedirectUri] = useState('');
   
   useEffect(() => {

@@ -258,9 +258,10 @@ class DerivService {
       this.token = cleanToken;
       localStorage.setItem('deriv_token', cleanToken);
       
-      const isLegacyToken = cleanToken.length < 64;
+      // pat_ tokens are Personal Access Tokens which should use the direct path even if 64 chars
+      const isLegacyToken = cleanToken.length < 64 || cleanToken.startsWith('pat_');
 
-      console.log(`Deriv: Initiating authorization (Type: ${isLegacyToken ? 'Legacy' : 'Modern/OTP'})`);
+      console.log(`Deriv: Initiating authorization (Type: ${isLegacyToken ? 'Legacy/PAT' : 'Modern/OTP'})`);
 
       if (isLegacyToken) {
         return await this.legacyAuthorize(cleanToken);
