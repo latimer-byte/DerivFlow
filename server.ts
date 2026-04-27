@@ -28,10 +28,11 @@ async function startServer() {
     res.json({ status: "ok", mode: process.env.NODE_ENV || "development" });
   });
 
-  // API Route for token exchange
-  app.post("/api/deriv/token", async (req, res) => {
-    console.log("POST /api/deriv/token received");
-    const { code, code_verifier, redirect_uri, client_id } = req.body;
+  // API Routes with trailing slash fallback
+  const derivTokenPaths = ["/api/deriv/token", "/api/deriv/token/"];
+  app.post(derivTokenPaths, async (req, res) => {
+    console.log(`POST ${req.url} received`);
+    let { code, code_verifier, redirect_uri, client_id } = req.body;
 
     if (!code || !code_verifier || !redirect_uri || !client_id) {
       console.error("Missing parameters in /api/deriv/token:", { 
@@ -43,49 +44,51 @@ async function startServer() {
       return res.status(400).json({ error: "Missing required parameters" });
     }
 
+    // Normalize redirect_uri (remove trailing slash if present)
+    redirect_uri = redirect_uri.replace(/\/$/, "");
+
     try {
       console.log(`Exchanging code for token with client_id: ${client_id}`);
-      console.log(`Redirect URI in use: ${redirect_uri}`);
+      console.log(`Normalized Redirect URI: ${redirect_uri}`);
       
-      const params = new URLSearchParams({
+      const getParams = (uri: string) => new URLSearchParams({
         grant_type: "authorization_code",
         client_id,
         code,
         code_verifier,
-        redirect_uri,
+        redirect_uri: uri,
       });
 
       // Deriv OAuth2 Token Endpoint
-      // Some versions of the endpoint (Ory Hydra) are strict about trailing slashes or headers
       const tokenUrl = "https://auth.deriv.com/oauth2/token";
       
-      let response = await fetch(tokenUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json",
-          "User-Agent": "Deriv-Terminal-App/1.0.0",
-          "Origin": "https://auth.deriv.com",
-          "Referer": "https://auth.deriv.com/oauth2/auth"
-        },
-        body: params.toString(),
-      });
-
-      // Trailing slash fallback (Common in Ory/Hydra setups)
-      if (response.status === 405) {
-        console.log(`405 detected on ${tokenUrl}. Attempting fallback with trailing slash...`);
-        const fallbackResponse = await fetch(tokenUrl + "/", {
+      const fetchToken = async (url: string, rUri: string) => {
+        return fetch(url, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "application/json",
-            "User-Agent": "Deriv-Terminal-App/1.0.0"
+            "User-Agent": "Deriv-Terminal-App/1.0.0",
+            "Origin": "https://auth.deriv.com"
           },
-          body: params.toString(),
+          body: getParams(rUri).toString(),
         });
+      };
+
+      let response = await fetchToken(tokenUrl, redirect_uri);
+
+      // Recursive Fallback Matrix for 405 or 400 errors related to slashes
+      if (response.status === 405 || response.status === 400) {
+        console.log(`Status ${response.status} detected on ${tokenUrl}. Attempting path/URI permutations...`);
         
-        if (fallbackResponse.ok || fallbackResponse.status !== 405) {
-          response = fallbackResponse;
+        // Try fallback 1: Trailing slash on API URL
+        const res2 = await fetchToken(tokenUrl + "/", redirect_uri);
+        if (res2.ok) {
+          response = res2;
+        } else {
+          // Try fallback 2: Trailing slash on redirect_uri (mismatch in dashboard)
+          const res3 = await fetchToken(tokenUrl, redirect_uri + "/");
+          if (res3.ok) response = res3;
         }
       }
 
@@ -123,7 +126,7 @@ async function startServer() {
   });
 
   // Proxy route for Deriv Accounts
-  app.get("/api/deriv/accounts", async (req, res) => {
+  app.get(["/api/deriv/accounts", "/api/deriv/accounts/"], async (req, res) => {
     const token = req.headers.authorization;
     const appId = req.headers['x-deriv-app-id'] || process.env.VITE_DERIV_APP_ID || '336Jcj20DczhY7sKLv2Ri';
 
@@ -165,7 +168,7 @@ async function startServer() {
   });
 
   // Proxy route for Deriv OTP
-  app.post("/api/deriv/otp/:accountId", async (req, res) => {
+  app.post(["/api/deriv/otp/:accountId", "/api/deriv/otp/:accountId/"], async (req, res) => {
     const { accountId } = req.params;
     const token = req.headers.authorization;
     const appId = req.headers['x-deriv-app-id'] || process.env.VITE_DERIV_APP_ID || '336Jcj20DczhY7sKLv2Ri';

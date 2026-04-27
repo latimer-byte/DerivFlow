@@ -133,8 +133,8 @@ export default function App() {
       const storedClientId = sessionStorage.getItem('oauth_client_id');
       
       const clientId = sessionStorage.getItem('oauth_client_id') || import.meta.env.VITE_DERIV_CLIENT_ID || '336Jcj20DczhY7sKLv2Ri';
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://deriv-flow.vercel.app';
-      const redirectUri = sessionStorage.getItem('oauth_redirect_uri') || `${origin}/callback`;
+      const origin = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : 'https://deriv-flow.vercel.app';
+      const redirectUri = sessionStorage.getItem('oauth_redirect_uri') || origin;
 
       if (returnedState && storedState && returnedState !== storedState) {
         throw new Error('Security Breach: OAuth state mismatch detected.');

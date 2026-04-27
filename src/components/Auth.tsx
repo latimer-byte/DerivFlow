@@ -21,9 +21,9 @@ export function Auth({ onLogin }: AuthProps) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const origin = window.location.origin.replace(/\/$/, '');
-      const uri = `${origin}/callback`;
+      const uri = origin;
       setExpectedRedirectUri(uri);
-      setCustomRedirectUri(prev => (!prev || prev.includes('deriv-flow.vercel.app')) ? uri : prev);
+      setCustomRedirectUri(prev => (!prev || prev.includes('deriv-flow.vercel.app') || prev.includes('/callback')) ? uri : prev);
     }
   }, []);
 
@@ -476,15 +476,15 @@ Connect to Deriv terminal?`;
                       >
                         <p className="text-[8px] text-text-primary uppercase font-bold text-center">Dashboard Setup Required</p>
                         <div className="space-y-1">
-                          <label className="text-[7px] font-black text-text-muted uppercase">Copy this domain to whitelist:</label>
+                          <label className="text-[7px] font-black text-text-muted uppercase">Copy this EXACT URL to Whitelist:</label>
                           <div className="flex items-center gap-2 p-2 bg-black border border-white/5 rounded-lg">
                             <code className="text-[9px] font-mono text-brand break-all flex-1">
-                              {typeof window !== 'undefined' ? window.location.hostname : '...'}
+                              {typeof window !== 'undefined' ? window.location.origin : '...'}
                             </code>
                             <button 
                               onClick={() => {
-                                navigator.clipboard.writeText(window.location.hostname);
-                                alert('Domain copied! Paste this into "Whitelisted Domains" at api.deriv.com');
+                                navigator.clipboard.writeText(window.location.origin);
+                                alert('Redirect URI copied! Paste this into "Redirect URL" and "Whitelisted Domains" at api.deriv.com');
                               }}
                               className="text-[7px] font-black text-brand uppercase hover:underline"
                             >
