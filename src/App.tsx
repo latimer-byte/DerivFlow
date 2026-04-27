@@ -131,7 +131,7 @@ export default function App() {
       const storedRedirectUri = sessionStorage.getItem('oauth_redirect_uri');
       const storedClientId = sessionStorage.getItem('oauth_client_id');
       
-      const clientId = sessionStorage.getItem('oauth_client_id') || import.meta.env.VITE_DERIV_CLIENT_ID || '1089';
+      const clientId = sessionStorage.getItem('oauth_client_id') || import.meta.env.VITE_DERIV_CLIENT_ID || '336Jcj20DczhY7sKLv2Ri';
       const origin = typeof window !== 'undefined' ? window.location.origin : 'https://deriv-flow.vercel.app';
       const redirectUri = sessionStorage.getItem('oauth_redirect_uri') || `${origin}/callback`;
 

@@ -3,7 +3,7 @@
  * Aligned with https://developers.deriv.com/llms.txt
  */
 
-const DEFAULT_APP_ID = '1089';
+const DEFAULT_APP_ID = '336Jcj20DczhY7sKLv2Ri';
 const DEFAULT_CLIENT_ID = '336Jcj20DczhY7sKLv2Ri';
 const PUBLIC_WS_URL = 'wss://api.derivws.com/trading/v1/options/ws/public';
 
@@ -11,40 +11,19 @@ const getAppId = () => {
   const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'unknown';
   
   const storedAppId = localStorage.getItem('deriv_app_id');
-  if (storedAppId && /^\d+$/.test(storedAppId)) {
+  if (storedAppId && storedAppId !== '1089') { // Avoid using the older default if specifically set
     console.log(`Deriv: Using stored App ID: ${storedAppId}`);
     return storedAppId;
   }
 
   const envAppId = import.meta.env.VITE_DERIV_APP_ID;
-  if (envAppId && /^\d+$/.test(envAppId)) {
-    // Safety check: skip legacy known-problematic IDs if we are in this specific AIS environment
-    if (envAppId === '33433' && currentDomain.includes('ais-dev')) {
-      console.warn(`Deriv: Detected legacy or problematic App ID ${envAppId} in AIS environment. Defaulting to safe ID 1089.`);
-      return DEFAULT_APP_ID;
-    }
+  if (envAppId && (envAppId !== '33433' && envAppId !== '1089')) {
     console.log(`Deriv: Using environment App ID: ${envAppId}`);
     return envAppId;
   }
 
   const clientId = import.meta.env.VITE_DERIV_CLIENT_ID || DEFAULT_CLIENT_ID;
-  
-  // If it's a legacy style ID (pure numeric or numeric-prefixed with a specific length)
-  // or if it's the new alphanumeric ID, we should be careful.
-  // Generally, if it has letters, it should be treated as a modern Client ID.
-  if (/[a-zA-Z]/.test(clientId)) {
-    console.log(`Deriv: Using alphanumeric Client ID as App ID: ${clientId}`);
-    return clientId;
-  }
-
-  const numericMatch = clientId.match(/^(\d+)/);
-  if (numericMatch) {
-    console.log(`Deriv: Using App ID extracted from client_id: ${numericMatch[1]}`);
-    return numericMatch[1];
-  }
-
-  console.log(`Deriv: Using default fallback App ID: ${DEFAULT_APP_ID}`);
-  return DEFAULT_APP_ID;
+  return clientId;
 };
 
 export type Tick = {
@@ -434,27 +413,27 @@ class DerivService {
         if (data.error) {
           const errMsg = data.error.message;
           if (errMsg.includes('Sorry, an error occurred') || data.error.code === 'InvalidAppID') {
-            const isLegacyBadId = appId === '33433';
+            const isDefaultId = appId === DEFAULT_APP_ID;
             console.error(`Deriv Security Reject: App ID ${appId} not authorized for domain ${currentDomain}.`);
             
-            if (isLegacyBadId) {
-              console.warn(`Deriv: Known-bad App ID ${appId} detected as failed. Auto-switching to safe ID 1089...`);
+            if (isDefaultId && appId !== '1089') {
+              console.warn(`Deriv: Primary App ID ${appId} failed. Attempting ultimate fallback 1089...`);
               this.setAppId('1089');
-              reject(new Error("Deriv App ID 33433 is unauthorized for this domain. We've automatically recalibrated to ID 1089. Please reload the app."));
+              reject(new Error(`The registered App ID (${appId}) is not authorized for this domain. We've attempted to recalibrate using the universal fallback (1089). Please reload the application.`));
               return;
             }
 
-            reject(new Error(`Deriv Access Denied: The App ID (${appId}) is not registered or not permitted for this domain (${currentDomain}). 
+            reject(new Error(`Deriv Access Denied: The App ID (${appId}) is not registered or whitelisted for this domain (${currentDomain}). 
 
-Fix Instructions:
+Instructions:
 1. Go to https://api.deriv.com/app-registration
-2. Login and register a new App ID.
-3. Add "${currentDomain}" and "${currentDomain}/callback" to the whitelisted domains.
-4. Update the App ID in Handshake Settings or .env as VITE_DERIV_APP_ID.`));
+2. Ensure your App ID whitelists "${currentDomain}".
+3. Or update the App ID in Handshake Settings.`));
           } else {
             reject(new Error(errMsg));
           }
-        } else {
+        }
+ else {
           this.isAuthorized = true;
           this.setStatus('authorized');
           console.log(`Deriv: WebSocket Authorized (App ID: ${appId})`);

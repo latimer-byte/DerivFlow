@@ -238,7 +238,7 @@ export function Settings({ user, onLogout, isDarkMode, setIsDarkMode }: Settings
                     </div>
                     <input 
                       type="text" 
-                      placeholder="Enter your Deriv App ID (e.g. 1089)"
+                      placeholder="Enter your Deriv App ID (e.g. 336Jcj20DczhY7sKLv2Ri)"
                       value={localStorage.getItem('deriv_app_id') || ''}
                       onChange={(e) => {
                         const newId = e.target.value;
