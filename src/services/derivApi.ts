@@ -284,14 +284,25 @@ class DerivService {
           throw new Error(`Hub API Error: ${accountsData.error.message || "Unknown"}`);
         }
 
-        const accounts = accountsData.data || accountsData.accounts || [];
-        if (accounts.length === 0) throw new Error("No accounts found for this token");
+        const accounts = accountsData?.data || accountsData?.accounts || [];
+        if (accounts.length === 0) {
+          console.error("Deriv: No accounts found in Hub API response", accountsData);
+          throw new Error("No accounts found for this token. Please ensure you have an active account on Deriv.");
+        }
 
         // Prefer DOT/Options authorized accounts
         const demoAccount = accounts.find((a: any) => a.account_type === 'demo' || a.id?.startsWith('DOT')) || accounts[0];
-        this.activeAccountId = demoAccount.account_id || demoAccount.id;
         
-        if (!this.activeAccountId) throw new Error("Could not resolve account ID");
+        if (!demoAccount) {
+          throw new Error("Could not identify a valid account to authorize.");
+        }
+
+        this.activeAccountId = demoAccount.account_id || demoAccount.id || demoAccount.login;
+        
+        if (!this.activeAccountId) {
+          console.error("Deriv: Account object missing ID", demoAccount);
+          throw new Error("Missing properties in account data (no ID found).");
+        }
         
         localStorage.setItem('active_account_id', this.activeAccountId!);
         

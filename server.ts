@@ -101,6 +101,7 @@ async function startServer() {
 
       if (!response.ok) {
         console.error(`Deriv Token Exchange Failed (Status ${response.status}):`, data);
+        console.error("Full Response Body:", responseText);
         
         if (response.status === 405) {
           return res.status(405).json({ 

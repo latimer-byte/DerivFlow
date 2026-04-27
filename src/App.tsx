@@ -12,7 +12,7 @@ import { Chat } from './components/Chat';
 import { History } from './components/History';
 import { Analytics } from './components/Analytics';
 import { Auth } from './components/Auth';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, onAuthStateChanged, signInAnonymously } from './lib/firebase';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { derivApi, Tick, HistoryPoint, Candle, ConnectionStatus } from './services/derivApi';
@@ -255,6 +255,8 @@ export default function App() {
         friendlyError = 'Invalid Request: The Redirect URI or Client ID does not match your Deriv Dashboard settings exactly. Ensure "https://" is present and no trailing slashes if not registered with one.';
       } else if (error.includes('405')) {
         friendlyError = `Handshake Method Rejected (405): Deriv's security server rejected the token exchange. This usually means your App ID is not setup for "OAuth 2.0" or you are using the numeric App ID where the Alphanumeric Client ID is required.`;
+      } else if (error.toLowerCase().includes('missing properties')) {
+        friendlyError = `Handshake Success but Data Mismatch: Your Deriv account returned an unexpected profile (Missing Properties). This can happen if you are using an account not fully authorized for modern Options Hub APIs.`;
       }
       
       setAuthError(friendlyError);

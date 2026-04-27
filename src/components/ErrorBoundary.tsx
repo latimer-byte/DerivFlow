@@ -55,7 +55,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="min-h-screen bg-background flex items-center justify-center p-4" id="error-screen">
           <div className="bg-card border border-border rounded-[2rem] p-8 max-w-md w-full text-center shadow-2xl glass-effect">
             <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-rose-500/20">
               <span className="text-3xl text-rose-500">⚡</span>
@@ -67,12 +67,14 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
             <div className="space-y-3">
               <button 
+                id="reload-button"
                 onClick={() => window.location.reload()}
                 className="w-full bg-brand text-white rounded-xl py-4 font-bold text-sm hover:bg-brand-hover transition-all shadow-lg shadow-brand/20 active:scale-95"
               >
                 Reload Application
               </button>
               <button 
+                id="reset-button"
                 onClick={this.handleReset}
                 className="w-full bg-secondary text-text-primary border border-border rounded-xl py-4 font-bold text-sm hover:bg-secondary/80 transition-all active:scale-95"
               >
