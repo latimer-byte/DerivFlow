@@ -1,29 +1,31 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Roboto+Mono:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Light Theme (Default) - Replit Inspired */
-  --color-background: #F0F4F8;
-  --color-card: #E1E8F0;
-  --color-border: #CBD5E1;
+  /* Global Gaming Theme (Dark by Default) */
+  --color-background: #050505;
+  --color-card: #0d0d0d;
+  --color-secondary: #141414;
+  --color-border: #1a1a1a;
+  --color-border-strong: #2a2a2a;
   
-  --color-brand: #F26624;
-  --color-brand-hover: #D9541E;
+  --color-brand: #ff4400; /* Neon Orange */
+  --color-brand-hover: #ff5511;
   
-  --color-bullish: #26A69A;
-  --color-bearish: #EF5350;
-  --color-bearish-fill: #EF5350;
+  --color-bullish: #00ffaa; /* Cyber Green */
+  --color-bearish: #ff2255; /* Cyber Red */
+  --color-bearish-fill: #ff2255;
   
-  --color-text-primary: #1C2333;
-  --color-text-secondary: #475569;
-  --color-text-muted: #94A3B8;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #a0a0a0;
+  --color-text-muted: #555555;
 
-  --radius-xl: 10px;
-  --radius-2xl: 12px;
-  --radius-3xl: 16px;
+  --radius-xl: 4px; /* Brutalist/Gaming sharper corners */
+  --radius-2xl: 8px;
+  --radius-3xl: 12px;
 }
 
 .dark {

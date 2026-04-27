@@ -12,13 +12,14 @@ import { Chat } from './components/Chat';
 import { History } from './components/History';
 import { Analytics } from './components/Analytics';
 import { Auth } from './components/Auth';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { AuthErrorModal } from './components/AuthErrorModal';
 import { auth, logout as firebaseLogout, db, handleFirestoreError, OperationType, onAuthStateChanged, signInAnonymously } from './lib/firebase';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { derivApi, Tick, HistoryPoint, Candle, ConnectionStatus } from './services/derivApi';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { Zap } from 'lucide-react';
+import { Zap, ArrowRight } from 'lucide-react';
 
 import { StorageService } from './lib/storage';
 
@@ -714,33 +715,11 @@ export default function App() {
           </div>
         )}
         
-        {/* Error Modal for handshake failures */}
-        <AnimatePresence>
-          {authError && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-background/80 backdrop-blur-md flex items-center justify-center z-[100] p-6"
-            >
-              <div className="bg-card border border-red-500/30 p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl shadow-red-500/10">
-                <div className="w-16 h-16 bg-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <Zap className="text-white w-8 h-8" />
-                </div>
-                <h2 className="text-xl font-black italic uppercase tracking-tighter text-text-primary mb-2">Access Denied</h2>
-                <p className="text-xs font-bold text-red-400 uppercase tracking-widest leading-relaxed mb-8">
-                  {authError}
-                </p>
-                <button 
-                  onClick={handleReturnToLogin}
-                  className="w-full py-4 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
-                >
-                  Restart Handshake
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <AuthErrorModal 
+          error={authError} 
+          onClear={() => setAuthError(null)}
+          onRetry={handleReturnToLogin}
+        />
       </ErrorBoundary>
     );
   }

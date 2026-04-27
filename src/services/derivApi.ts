@@ -60,16 +60,12 @@ class DerivService {
   private isAuthorized = false;
   private otpUrl: string | null = null;
   private activeAccountId: string | null = localStorage.getItem('active_account_id');
+  private isAuthorizing = false;
 
   constructor() {
+    // connect() is async but we don't await in constructor. 
+    // It will handle auth internally if token is present.
     this.connect();
-    
-    // If we have a token, automatically try to initialize the authenticated flow
-    if (this.token) {
-      this.authorize(this.token).catch(err => {
-        console.warn("Auto-initialization of modern auth flow failed:", err);
-      });
-    }
   }
 
   public onStatusChange(callback: (status: ConnectionStatus) => void) {
@@ -87,17 +83,30 @@ class DerivService {
     this.trigger(status, { status });
   }
 
-  private connect(url?: string) {
-    // If already connecting or connected to the correct URL, don't restart
+  private async connect(url?: string) {
+    // 1. If we have a token but aren't authorized, try to authorize first to get the correct URL
+    if (this.token && !this.isAuthorized && !url && !this.otpUrl && !this.isAuthorizing) {
+      try {
+        console.log("Deriv: Token present during connect, initiating background handshake...");
+        await this.authorize(this.token);
+        return; // authorize() calls connect() again once it has the correct URL
+      } catch (err) {
+        console.warn("Deriv: Background handshake failed, proceeding with public connection fallback:", err);
+      }
+    }
+
+    // 2. Identify the target URL
     const wsUrl = url || this.otpUrl || `${PUBLIC_WS_URL}?app_id=${getAppId()}`;
     
+    // 3. Socket Lifecycle Management
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
-      // If we are already connecting/connected to a DIFFERENT URL, we must close and restart
       if (this.socket.url !== wsUrl) {
-        console.log(`Deriv: URL mismatch (${this.socket.url} vs ${wsUrl}), restarting socket...`);
-        this.socket.close();
+        console.log(`Deriv: URL rotation required (${this.socket.url} -> ${wsUrl}), recycling socket...`);
+        const oldSocket = this.socket;
+        this.socket = null; // Prevent onclose auto-reconnect
+        oldSocket.close();
       } else {
-        return; // Already in flight or connected
+        return; // Correct socket is already active
       }
     }
 
@@ -236,141 +245,106 @@ class DerivService {
    */
   public async authorize(token: string) {
     if (!token) throw new Error("No token provided for authorization");
+    if (this.isAuthorizing) return;
+    this.isAuthorizing = true;
     
-    // Normalize token (remove Bearer prefix if user pasted it)
-    let cleanToken = token.trim();
-    if (cleanToken.toLowerCase().startsWith('bearer ')) {
-      cleanToken = cleanToken.substring(7).trim();
-    }
-    
-    this.token = cleanToken;
-    localStorage.setItem('deriv_token', cleanToken);
-    
-    // Smart Detection: Legacy API tokens are shorter than OAuth tokens
-    // We increase limits to be safe, OAuth tokens are typically > 100 chars
-    const isLegacyToken = cleanToken.length < 64;
-
-    console.log(`Deriv: Initiating authorization (Type: ${isLegacyToken ? 'Legacy' : 'Modern/OTP'})`);
-    console.log(`Deriv: Token endpoint check (Length: ${cleanToken.length})`);
-
     try {
+      // Normalize token (remove Bearer prefix if user pasted it)
+      let cleanToken = token.trim();
+      if (cleanToken.toLowerCase().startsWith('bearer ')) {
+        cleanToken = cleanToken.substring(7).trim();
+      }
+      
+      this.token = cleanToken;
+      localStorage.setItem('deriv_token', cleanToken);
+      
+      const isLegacyToken = cleanToken.length < 64;
+
+      console.log(`Deriv: Initiating authorization (Type: ${isLegacyToken ? 'Legacy' : 'Modern/OTP'})`);
+
       if (isLegacyToken) {
         return await this.legacyAuthorize(cleanToken);
       }
 
       // 1. Fetch available accounts (Modern Hub API)
-      // We set a strict timeout for the resting hub call to avoid UI lag
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      try {
-        const accountsRes = await fetch('/api/deriv/accounts', {
-          headers: { 
-            'Authorization': `Bearer ${cleanToken}`,
-            'x-deriv-app-id': getAppId()
-          },
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        
-        if (!accountsRes.ok) {
-          const errText = await accountsRes.text();
-          throw new Error(`Hub API rejected token (${accountsRes.status}): ${errText}`);
-        }
-        
-        const accountsData = await accountsRes.json();
-        
-        if (accountsData.error) {
-          throw new Error(`Hub API Error: ${accountsData.error.message || "Unknown"}`);
-        }
-
-        const accounts = accountsData?.data || accountsData?.accounts || [];
-        if (accounts.length === 0) {
-          console.error("Deriv: No accounts found in Hub API response", accountsData);
-          throw new Error("No accounts found for this token. Please ensure you have an active account on Deriv.");
-        }
-
-        // Prefer DOT/Options authorized accounts
-        const demoAccount = accounts.find((a: any) => a.account_type === 'demo' || a.id?.startsWith('DOT')) || accounts[0];
-        
-        if (!demoAccount) {
-          throw new Error("Could not identify a valid account to authorize.");
-        }
-
-        this.activeAccountId = demoAccount.account_id || demoAccount.id || demoAccount.login;
-        
-        if (!this.activeAccountId) {
-          console.error("Deriv: Account object missing ID", demoAccount);
-          throw new Error("Missing properties in account data (no ID found).");
-        }
-        
-        localStorage.setItem('active_account_id', this.activeAccountId!);
-        
-        console.log(`Deriv: Requesting OTP for account ${this.activeAccountId}...`);
-        const otpRes = await fetch(`/api/deriv/otp/${this.activeAccountId}`, {
-          method: 'POST',
-          headers: { 
-            'Authorization': `Bearer ${cleanToken}`,
-            'x-deriv-app-id': getAppId()
-          }
-        });
-        
-        if (!otpRes.ok) {
-          const otpErr = await otpRes.text();
-          throw new Error(`Failed to obtain OTP (${otpRes.status}): ${otpErr}`);
-        }
-        
-        const otpData = await otpRes.json();
-        if (otpData.data?.url || otpData.url) {
-          const wsUrl = otpData.data?.url || otpData.url;
-          console.log("Deriv: Modern Hub Auth Successful, switching to OTP WebSocket...");
-          this.otpUrl = wsUrl;
-          this.isAuthorized = true;
-          
-          if (this.socket) {
-            console.log("Deriv: Rotating socket to OTP endpoint...");
-            const oldSocket = this.socket;
-            this.socket = null; // Prevent onclose auto-reconnect
-            this.isConnected = false;
-            oldSocket.close();
-          }
-          
-          this.connect();
-          return accountsData;
-        } else {
-          throw new Error("OTP response missing WebSocket URL");
-        }
-      } catch (restError: any) {
-        if (restError.name === 'AbortError') throw new Error("Hub API Timeout");
-        throw restError;
+      const accountsRes = await fetch('/api/deriv/accounts', {
+        headers: { 
+          'Authorization': `Bearer ${cleanToken}`,
+          'x-deriv-app-id': getAppId()
+        },
+        signal: controller.signal
+      }).finally(() => clearTimeout(timeoutId));
+      
+      if (!accountsRes.ok) {
+        const errText = await accountsRes.text();
+        throw new Error(`Hub API rejected token (${accountsRes.status}): ${errText}`);
       }
+      
+      const accountsData = await accountsRes.json();
+      if (accountsData.error) throw new Error(accountsData.error.message || "Hub API Error");
+
+      const accounts = accountsData?.data || accountsData?.accounts || [];
+      if (accounts.length === 0) throw new Error("No accounts found for this token.");
+
+      const demoAccount = accounts.find((a: any) => a.account_type === 'demo' || a.id?.startsWith('DOT')) || accounts[0];
+      this.activeAccountId = demoAccount.account_id || demoAccount.id || demoAccount.login;
+      
+      if (!this.activeAccountId) throw new Error("Missing account data (no ID).");
+      localStorage.setItem('active_account_id', this.activeAccountId!);
+      
+      console.log(`Deriv: Requesting OTP for account ${this.activeAccountId}...`);
+      const otpRes = await fetch(`/api/deriv/otp/${this.activeAccountId}`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${cleanToken}`,
+          'x-deriv-app-id': getAppId()
+        }
+      });
+      
+      if (!otpRes.ok) throw new Error(`OTP failed (${otpRes.status})`);
+      
+      const otpData = await otpRes.json();
+      const wsUrl = otpData.data?.url || otpData.url;
+      if (!wsUrl) throw new Error("OTP missing WebSocket URL");
+
+      console.log("Deriv: Modern Hub Auth Successful");
+      this.otpUrl = wsUrl;
+      this.isAuthorized = true;
+      
+      if (this.socket) {
+        const oldSocket = this.socket;
+        this.socket = null;
+        this.isConnected = false;
+        oldSocket.close();
+      }
+      
+      this.connect();
+      return accountsData;
     } catch (error: any) {
       console.warn(`Deriv: Modern Auth failed (${error.message || 'Error'}), falling back to Legacy WebSocket Auth...`);
-      this.otpUrl = null; // IMPORTANT: Clear OTP URL for legacy fallback
+      this.otpUrl = null;
       
-      // FALLBACK: Traditional WebSocket authorize
       try {
-        // Force a clean websocket connection for legacy auth to ensure fresh state/app_id
         if (this.socket) {
-          console.log("Deriv: Resetting socket for legacy fallback...");
           const oldSocket = this.socket;
-          this.socket = null; // Prevent onclose from triggering auto-reconnect
+          this.socket = null;
           this.isConnected = false;
           if (oldSocket.readyState === WebSocket.OPEN || oldSocket.readyState === WebSocket.CONNECTING) {
             oldSocket.close();
           }
           await new Promise(r => setTimeout(r, 500));
         }
-
-        const authData = await this.legacyAuthorize(cleanToken);
-        console.log("Deriv: WebSocket Auth Fallback Successful");
-        return authData;
+        return await this.legacyAuthorize(this.token!);
       } catch (fallbackError: any) {
         console.error("Deriv Authentication Total Failure:", fallbackError);
         this.isAuthorized = false;
-        this.otpUrl = null;
         throw fallbackError;
       }
+    } finally {
+      this.isAuthorizing = false;
     }
   }
 
@@ -384,11 +358,15 @@ class DerivService {
     }
 
     return new Promise((resolve, reject) => {
-      const timeoutSec = 25;
+      const timeoutSec = 45; // Increased timeout for slow handshakes
       const timeoutId = setTimeout(() => {
         if (!this.isAuthorized) {
           console.error(`Deriv auth timeout after ${timeoutSec}s. Status: ${this.isConnected ? 'Connected' : 'Disconnected'}, ReadyState: ${this.socket?.readyState}`);
-          reject(new Error("Connection timeout during WebSocket auth fallback. Please check your internet or App ID whitelist. Ensure the token is valid and the App ID matches your domain."));
+          
+          const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'unknown';
+          const appId = getAppId();
+          
+          reject(new Error(`HANDSHAKE TIMEOUT (${timeoutSec}s):\nThe terminal could not establish a secure link with Deriv. \n\nCRITICAL CHECK: Your App ID "${appId}" MUST whitelist "${currentDomain}" in the Deriv API Dashboard.`));
         }
       }, timeoutSec * 1000);
 
@@ -406,7 +384,7 @@ class DerivService {
       // Ensure we are connected first
       if (!this.isConnected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
         console.log("Deriv: Socket not ready for auth, connecting...");
-        this.connect();
+        this.connect(); // This will eventually trigger doAuth if successful
         
         const checkConn = () => {
           if (this.socket?.readyState === WebSocket.OPEN) {

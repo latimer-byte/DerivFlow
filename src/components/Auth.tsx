@@ -20,10 +20,9 @@ export function Auth({ onLogin }: AuthProps) {
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const origin = window.location.origin.replace(/\/$/, ''); // Remove trailing slash if exists
+      const origin = window.location.origin.replace(/\/$/, '');
       const uri = `${origin}/callback`;
       setExpectedRedirectUri(uri);
-      // Only set custom if it's currently at a default-looking value or blank
       setCustomRedirectUri(prev => (!prev || prev.includes('deriv-flow.vercel.app')) ? uri : prev);
     }
   }, []);
@@ -31,6 +30,12 @@ export function Auth({ onLogin }: AuthProps) {
   const [customRedirectUri, setCustomRedirectUri] = useState('');
   const [registeredRedirectUri, setRegisteredRedirectUri] = useState('');
   const [showDiagnostic, setShowDiagnostic] = useState(false);
+  const [showWhitelistingHelp, setShowWhitelistingHelp] = useState(false);
+  const [uriMismatch, setUriMismatch] = useState(false);
+
+  useEffect(() => {
+    setUriMismatch(customRedirectUri !== expectedRedirectUri);
+  }, [customRedirectUri, expectedRedirectUri]);
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -221,102 +226,106 @@ Connect to Deriv terminal?`;
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col md:flex-row items-stretch justify-center overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col md:flex-row items-stretch justify-center overflow-hidden font-sans">
       {/* Visual Side (Left) */}
-      <div className="hidden md:flex md:w-1/2 bg-[#0a0a0a] relative items-center justify-center p-12 overflow-hidden border-r border-[#1a1a1a]">
+      <div className="hidden md:flex md:w-1/2 bg-[#020202] relative items-center justify-center p-12 overflow-hidden border-r border-border">
         <div className="absolute inset-0 z-0">
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-rose-500/5 rounded-full blur-[120px] translate-y-1/2 -translate-x-1/2" />
-          <div className="absolute inset-0 technical-grid opacity-[0.03]" />
           
-          {/* Animated Matrix-like lines */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
-             {[...Array(6)].map((_, i) => (
-               <motion.div
-                 key={i}
-                 initial={{ y: -100, opacity: 0 }}
-                 animate={{ y: 800, opacity: [0, 1, 0] }}
-                 transition={{ 
-                   duration: 5 + i, 
-                   repeat: Infinity, 
-                   ease: "linear",
-                   delay: i * 0.8
-                 }}
-                 style={{ left: `${(i + 1) * 15}%` }}
-                 className="absolute w-[1px] h-32 bg-gradient-to-b from-transparent via-brand to-transparent"
-               />
-             ))}
-          </div>
+          {/* Cyberpunk Grid */}
+          <div className="absolute inset-0 technical-grid opacity-[0.05]" />
+          
+          {/* Scanning Line Animation */}
+          <motion.div 
+            animate={{ top: ['0%', '100%', '0%'] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+            className="absolute left-0 right-0 h-[1px] bg-brand/20 z-10"
+          />
         </div>
         
-        <div className="relative z-10 max-w-md">
+        <div className="relative z-10 max-w-md text-center">
           <motion.div 
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 1, ease: [0.23, 1, 0.32, 1] }}
-            className="mb-10"
+            className="mb-10 inline-block"
           >
-            <div className="w-16 h-16 bg-brand rounded-2xl flex items-center justify-center shadow-[0_0_40px_rgba(255,68,0,0.3)]">
-              <Zap className="text-black w-8 h-8 fill-black" />
+            <div className="w-20 h-20 bg-brand rounded-sm flex items-center justify-center shadow-[0_0_50px_rgba(255,68,0,0.4)] rotate-45">
+              <Zap className="text-black w-10 h-10 fill-black -rotate-45" />
             </div>
           </motion.div>
           
-          <div className="space-y-6">
+          <div className="space-y-4">
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}
             >
-              <h1 className="text-6xl font-black italic uppercase tracking-tighter text-white leading-none mb-1">
-                Trade<span className="text-brand">Pulse</span>
+              <h1 className="text-7xl font-black italic uppercase tracking-tighter text-white leading-none">
+                PULSE<span className="text-brand">O1</span>
               </h1>
-              <p className="text-brand text-xs font-black uppercase tracking-[0.4em] mb-4">Autonomous Intelligence</p>
+              <p className="text-brand text-[10px] font-black uppercase tracking-[0.6em] mt-2">Tactical Trading Node</p>
             </motion.div>
 
             <motion.p 
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="text-text-muted text-sm font-medium uppercase tracking-widest leading-relaxed max-w-xs"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="text-text-secondary text-[11px] font-bold uppercase tracking-widest leading-loose max-w-xs mx-auto"
             >
-              The definitive frontier for synthetic assets and low-latency algorithmic execution.
+              High-Frequency Neural Execution Protocol. <br/>
+              Standardized for Modern Assets.
             </motion.p>
           </div>
-
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="mt-16 flex flex-wrap gap-4"
-          >
-            <div className="px-4 py-2 border border-white/5 bg-white/[0.02] rounded-xl flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-brand animate-pulse" />
-              <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Network: Live</span>
-            </div>
-            <div className="px-4 py-2 border border-white/5 bg-white/[0.02] rounded-xl flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Latency: 12ms</span>
-            </div>
-          </motion.div>
         </div>
       </div>
 
       {/* Auth Side (Right) */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12 bg-background">
+      <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12">
         <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
           className="w-full max-w-sm"
         >
           {/* Header */}
-          <div className="mb-10 text-center md:text-left transition-all">
-            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-text-primary mb-2">
-              {isLogin ? 'Access System' : 'Initialize Node'}
+          <div className="mb-12">
+            <div className="inline-block px-2 py-0.5 bg-brand/10 border border-brand/20 mb-4">
+              <span className="text-[9px] font-black text-brand uppercase tracking-widest">Auth_Protocol_v4.2</span>
+            </div>
+            <h2 className="text-4xl font-black italic uppercase tracking-tighter text-text-primary">
+              Initialize
             </h2>
-            <p className="text-text-muted text-[10px] font-black uppercase tracking-widest">
-              {isLogin ? 'Standard Authentication Protocol' : 'New User Onboarding Sequence'}
-            </p>
+            <AnimatePresence>
+              {uriMismatch && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="mt-6 p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex flex-col gap-3"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
+                      <Lock className="w-4 h-4 text-rose-500" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Security Warning: URI Mismatch</p>
+                      <p className="text-[9px] text-text-secondary uppercase leading-relaxed font-bold">
+                        The current Redirect URI does not match the browser's origin. Handshake will fail.
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setCustomRedirectUri(expectedRedirectUri);
+                      setShowConfig(true);
+                    }}
+                    className="w-full py-2 bg-rose-500 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-rose-600 transition-colors"
+                  >
+                    Auto-Correct Redirect URI
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <div className="space-y-6">
@@ -445,6 +454,46 @@ Connect to Deriv terminal?`;
                         )}
                         <p className="text-[7px] leading-relaxed text-text-muted uppercase font-medium">
                           Note: Deriv requires an absolute match including trailing slashes and protocol (https://).
+                        </p>
+                      </motion.div>
+                    )}
+
+                    <div className="pt-1">
+                      <button 
+                        onClick={() => setShowWhitelistingHelp(!showWhitelistingHelp)}
+                        className="w-full text-center text-[7px] font-black text-rose-500/60 hover:text-rose-500 uppercase flex items-center justify-center gap-1"
+                      >
+                        <Lock className="w-2 h-2" />
+                        Whitelisting Diagnostic
+                      </button>
+                    </div>
+
+                    {showWhitelistingHelp && (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="p-3 bg-rose-500/5 rounded-xl border border-rose-500/10 space-y-2"
+                      >
+                        <p className="text-[8px] text-text-primary uppercase font-bold text-center">Dashboard Setup Required</p>
+                        <div className="space-y-1">
+                          <label className="text-[7px] font-black text-text-muted uppercase">Copy this domain to whitelist:</label>
+                          <div className="flex items-center gap-2 p-2 bg-black border border-white/5 rounded-lg">
+                            <code className="text-[9px] font-mono text-brand break-all flex-1">
+                              {typeof window !== 'undefined' ? window.location.hostname : '...'}
+                            </code>
+                            <button 
+                              onClick={() => {
+                                navigator.clipboard.writeText(window.location.hostname);
+                                alert('Domain copied! Paste this into "Whitelisted Domains" at api.deriv.com');
+                              }}
+                              className="text-[7px] font-black text-brand uppercase hover:underline"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-[7px] leading-relaxed text-text-muted uppercase font-medium">
+                          Paste the above domain and click "Register" on the Deriv dashboard to fix "Security Reject" errors.
                         </p>
                       </motion.div>
                     )}
